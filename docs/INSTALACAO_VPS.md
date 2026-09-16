@@ -293,6 +293,8 @@ Faça isso depois de cadastrar credenciais, webhook e lista de teste. A consulta
 
 ### 8.4 Registros do domínio de e-mail
 
+**Antes de trocar MX, conclua o cadastro de todas as caixas e concessões da seção 9, confirme o webhook e os processos ativos.** Se mensagens chegarem antes de o destinatário existir no BRN Mail, elas não serão roteadas para uma caixa conhecida. A ordem segura é preparar o destino inteiro, mudar o recebimento e então testar; não interrompa o provedor anterior durante essa preparação.
+
 Use **os nomes, valores e prioridades exibidos na sua conta Resend**. Eles dependem do domínio/região; não há um MX universal para copiar deste guia.
 
 | Finalidade | O que configurar |
