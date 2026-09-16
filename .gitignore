@@ -1,0 +1,41 @@
+# Credenciais, dados reais e backups nunca entram no repositório.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.sql
+!/infra/init-test.sql
+*.dump
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.log
+*.tar
+*.tar.gz
+*.zip
+/backups/
+/storage/
+
+# Dependências e arquivos locais do ambiente de trabalho.
+/vendor/
+/node_modules/
+/bootstrap/cache/*.php
+/public/hot
+/public/build/
+/.phpunit.cache/
+/.phpunit.result.cache
+/test-results/
+/playwright-report/
+/storage-local-backups/
+/.idea/
+/.vscode/
+.DS_Store
+
+# Evidências agregadas são versionadas; harness e capturas permanecem locais.
+/qa/*
+!/qa/README.md
+!/qa/results.json

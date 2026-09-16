@@ -1,0 +1,72 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "brnsistemas/mail",
+    "type": "project",
+    "description": "BRN Mail — correspondência isolada por empresa, produto e caixa",
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
+    "license": "proprietary",
+    "require": {
+        "php": "^8.4",
+        "bacon/bacon-qr-code": "^3.0",
+        "laravel/framework": "^12.0",
+        "laravel/tinker": "^2.10.1",
+        "pragmarx/google2fa": "^9.0",
+        "predis/predis": "^3.0",
+        "svix/svix": "^1.0",
+        "symfony/html-sanitizer": "^7.3"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^1.23",
+        "laravel/pail": "^1.2.2",
+        "laravel/pint": "^1.24",
+        "laravel/sail": "^1.41",
+        "mockery/mockery": "^1.6",
+        "nunomaduro/collision": "^8.6",
+        "phpunit/phpunit": "^11.5.50"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "app/",
+            "Database\\Factories\\": "database/factories/",
+            "Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": [
+            "@php artisan config:clear --ansi",
+            "@php artisan test"
+        ],
+        "qa": [
+            "@php artisan test",
+            "@php vendor/bin/pint --test"
+        ],
+        "post-autoload-dump": [
+            "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
+            "@php artisan package:discover --ansi"
+        ]
+    },
+    "extra": {
+        "laravel": {
+            "dont-discover": []
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "preferred-install": "dist",
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

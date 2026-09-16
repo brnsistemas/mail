@@ -1,0 +1,79 @@
+name: BRN Mail QA
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  local-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_ENV: local
+      DB_HOST: 127.0.0.1
+      DB_PORT: 33461
+      DB_DATABASE: brnmail
+      DB_USERNAME: brnmail
+      DB_PASSWORD: brnmail-ci-only
+      MYSQL_ROOT_PASSWORD: brnmail-ci-root-only
+      BRNMAIL_BROWSER_CHANNEL: chromium
+      BRNMAIL_EXTERNAL_ENABLED: "false"
+    services:
+      mysql:
+        image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+        env:
+          MYSQL_DATABASE: brnmail
+          MYSQL_USER: brnmail
+          MYSQL_PASSWORD: brnmail-ci-only
+          MYSQL_ROOT_PASSWORD: brnmail-ci-root-only
+        ports: ["33461:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=5s
+          --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, mbstring, intl, gd, sodium, zip
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: php scripts/prepare-local.php
+      - run: composer install --no-interaction --prefer-dist
+      - run: php scripts/ci-database.php
+      - run: composer validate --strict
+      - run: composer audit
+      - run: vendor/bin/pint --test
+      # Set these before PHP starts. PHPUnit's force env does not replace
+      # inherited $_SERVER values, which Laravel reads before $_ENV/getenv.
+      - name: PHPUnit on the disposable test database
+        run: php artisan test --compact
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_DATABASE: brnmail_test
+          DB_URL: ""
+      - name: Sequential concurrency QA on the disposable test database
+        run: php tests/Concurrency/run.php
+        env:
+          APP_ENV: testing
+          DB_CONNECTION: mysql
+          DB_DATABASE: brnmail_test
+          DB_URL: ""
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npx playwright install --with-deps chromium
+      - run: php artisan migrate --force && php artisan db:seed --class=LocalDemoSeeder && php artisan db:seed --class=LocalWorkspaceDemoSeeder
+      - run: php artisan serve --host=127.0.0.1 --port=8876 --no-reload > storage/logs/qa-server.log 2>&1 &
+      - run: npm run qa:browser
+      - run: npm run qa:qr && npm run qa:auth-ui && npm run qa:invite && npm run lint
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sanitized-browser-qa
+          path: |
+            test-results/browser.json
+            test-results/axe-*.json
+      # Real ClamAV gate also runs locally; CI core does not pretend a skipped scanner is a pass.

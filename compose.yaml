@@ -1,0 +1,50 @@
+name: brnmail-local
+services:
+  mysql:
+    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+    environment:
+      MYSQL_DATABASE: brnmail
+      MYSQL_USER: brnmail
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Run php scripts/prepare-local.php}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Local root password required}
+    ports: ["127.0.0.1:33461:3306"]
+    volumes:
+      - mail-db:/var/lib/mysql
+      - ./infra/init-test.sql:/docker-entrypoint-initdb.d/20-test.sql:ro
+    command: ["--innodb-buffer-pool-size=128M", "--max-connections=60"]
+    mem_limit: 768m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      retries: 30
+    restart: "no"
+  redis:
+    image: redis:7.2-alpine@sha256:05a97a479bc73de66f087dc05b569010772880f778cc8671fa6b8aadee32e5c6
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Local Redis password required}
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes --maxmemory 96mb --maxmemory-policy noeviction"]
+    ports: ["127.0.0.1:16381:6379"]
+    volumes: ["mail-redis:/data"]
+    mem_limit: 160m
+    cpus: 0.5
+    restart: "no"
+  scanner:
+    profiles: [scanner]
+    platform: linux/amd64
+    image: clamav/clamav:1.5.4@sha256:1fdfd24c6f0a0fb60788481487459a6d4eda8a9b448641594e04db8410d34422
+    user: "100:101"
+    entrypoint: ["clamd"]
+    command: ["--foreground=true", "--config-file=/etc/clamav/clamd.conf"]
+    ports: ["127.0.0.1:13310:3310"]
+    volumes:
+      - ./infra/clamd-local.conf:/etc/clamav/clamd.conf:ro
+    mem_limit: 1850m
+    cpus: 1.0
+    pids_limit: 64
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+volumes:
+  mail-db:
+  mail-redis:

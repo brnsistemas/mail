@@ -1,0 +1,3 @@
+@extends('layout')
+@section('title','Segurança')
+@section('content')<main id="main" class="admin-page"><a href="/mail">← Voltar às caixas</a><h1>Segurança da conta</h1><section class="panel"><h2>Revogar sessões</h2><p>Todas as sessões existentes precisarão confirmar novamente o segundo fator, inclusive esta.</p><form method="post" action="/security/revoke">@csrf<label>Senha atual<input name="password" type="password" required autocomplete="current-password"></label><label>Código TOTP ou recuperação<input name="code" required autocomplete="one-time-code"></label><button class="danger">Revogar e sair</button></form></section></main>@endsection

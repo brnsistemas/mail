@@ -1,0 +1,17 @@
+{
+  "name": "brnmail-local-qa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "qa:browser": "node tests/Browser/qa.mjs",
+    "qa:qr": "node tests/Browser/qr-decode.mjs",
+    "qa:auth-ui": "node tests/Browser/auth-security-unit.mjs",
+    "qa:invite": "node --test tests/Browser/invite-unit.mjs",
+    "lint": "node --check public/mail.js && node --check public/auth-security.js && node --check public/invite.js"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
+    "jsqr": "1.4.0"
+  }
+}
