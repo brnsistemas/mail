@@ -4,6 +4,8 @@ Leia este arquivo antes de adicionar empresas, domínios, caixas ou pessoas.
 
 Para uma instalação nova, siga o [guia de VPS](docs/INSTALACAO_VPS.md). O Compose da raiz é local; os modelos de VPS estão em `docs/vps/`.
 
+Para conduzir uma pessoa iniciante, use o [prompt de instalação assistida para Codex ou Claude Code](docs/PROMPT_INSTALACAO_ASSISTIDA.md). Esse arquivo é um modelo de pedido; sua presença no repositório não autoriza contratar recursos ou iniciar uma implantação.
+
 ## Modelo
 
 **Empresa → produto → domínio → caixa.** O usuário é uma identidade humana separada. Uma pessoa pode operar várias caixas pelo seletor, desde que tenha vínculo ativo com a empresa e concessão explícita por caixa.

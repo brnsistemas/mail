@@ -51,6 +51,8 @@ Verifique saúde e assinaturas do ClamAV. O scanner consome memória adicional; 
 
 [Abra o guia completo de instalação em VPS](docs/INSTALACAO_VPS.md): Linux, Docker, HTTPS, banco, filas, scanner, Resend, DNS e backup, com modelos de configuração incluídos.
 
+Quer fazer a instalação com ajuda de um agente? Use o [prompt completo para Codex ou Claude Code](docs/PROMPT_INSTALACAO_ASSISTIDA.md). Ele orienta desde a escolha da VPS até os usuários e os testes reais, com perguntas em linguagem simples, aprovação de custos e retomada do progresso. Há também uma [versão em texto para copiar](docs/PROMPT_INSTALACAO_ASSISTIDA.txt).
+
 ## Configuração externa
 
 Siga [o manual](index.md) e [a configuração do Resend](docs/CONFIGURACAO.md). Cadastre seu próprio domínio e credenciais, instale os workers e o scheduler, configure HTTPS e teste backup/restauração. O webhook é `/webhooks/resend` no host da sua instalação.

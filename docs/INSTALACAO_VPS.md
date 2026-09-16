@@ -3,6 +3,8 @@
 **Guia da distribuição pública:** <https://github.com/brnsistemas/mail>  
 **Revisão do documento:** 16/09/2026. Base funcional: `fd8f79d` ou versão posterior compatível.
 
+**Instalação guiada por agente:** copie o [prompt completo para Codex ou Claude Code](PROMPT_INSTALACAO_ASSISTIDA.md). Ele usa este guia e conduz a escolha da VPS, acesso, instalação, usuários e homologação, inclusive quando você ainda não tem experiência com servidores.
+
 Este guia instala o BRN Mail em uma **VPS Linux x86_64 de qualquer provedor**, com Docker Engine e Compose. O exemplo usa Ubuntu Server 24.04 LTS. Em Debian, use o instalador oficial do Docker específico para Debian; os contêineres e a configuração da aplicação são os mesmos. ARM, Windows, hospedagem compartilhada e VPS sem suporte a Docker não estão validados neste procedimento.
 
 Você terá webmail HTTPS, MySQL, Redis, três filas, scheduler e ClamAV. **O Resend faz o transporte externo dos e-mails.** Não é necessário instalar Postfix, Dovecot ou outro servidor SMTP/IMAP; as portas 25, 465, 587 e 993 não fazem parte desta instalação.
