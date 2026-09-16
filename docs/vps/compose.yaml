@@ -1,0 +1,150 @@
+name: brnmail-vps
+
+x-app: &app
+  image: brnmail-runtime:php84
+  build: .
+  network_mode: host
+  working_dir: /srv/brnmail
+  user: "33:33"
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:rw,nosuid,noexec,size=128m,mode=1777
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  stop_grace_period: 120s
+  mem_limit: 1g
+  environment:
+    COMPOSER_HOME: /tmp/composer
+  volumes:
+    - ../app:/srv/brnmail:ro
+    - ../data/vendor:/srv/brnmail/vendor:ro
+    - ../data/storage:/srv/brnmail/storage
+    - ../data/bootstrap-cache:/srv/brnmail/bootstrap/cache
+    - ../private/brnmail.env:/srv/brnmail/.env:ro
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: brnmail
+      MYSQL_USER: brnmail
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql-password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql-root-password
+    secrets: [mysql-password, mysql-root-password]
+    ports: ["127.0.0.1:33461:3306"]
+    command: ["--innodb-buffer-pool-size=512M", "--max-connections=80"]
+    volumes: [mysql-data:/var/lib/mysql]
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "/run/secrets/redis.conf"]
+    volumes:
+      - ../private/redis.conf:/run/secrets/redis.conf:ro
+      - redis-data:/data
+    ports: ["127.0.0.1:16381:6379"]
+    mem_limit: 256m
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=$$(awk '/^requirepass / {print $$2}' /run/secrets/redis.conf) redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  scanner:
+    image: clamav/clamav:1.5.4
+    platform: linux/amd64
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_FRESHCLAMD: "false"
+      CLAMAV_NO_MILTERD: "true"
+    ports: ["127.0.0.1:13310:3310"]
+    volumes: [clamav-data:/var/lib/clamav]
+    mem_limit: 4g
+
+  fpm:
+    <<: *app
+    command: ["php-fpm", "-F"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  inbound:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "redis", "--queue=inbound", "--tries=1", "--timeout=60", "--memory=192", "--sleep=1"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  outbound:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "redis", "--queue=outbound", "--tries=1", "--timeout=60", "--memory=192", "--sleep=1"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  attachments:
+    <<: *app
+    command: ["php", "artisan", "queue:work", "redis", "--queue=attachments", "--tries=1", "--timeout=45", "--memory=256", "--sleep=1"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  scheduler:
+    <<: *app
+    command: ["php", "artisan", "schedule:work"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      redis: {condition: service_healthy}
+
+  cli:
+    <<: *app
+    profiles: [tools]
+    restart: "no"
+    command: ["php", "-v"]
+    volumes:
+      - ../app:/srv/brnmail:ro
+      - ../data/vendor:/srv/brnmail/vendor
+      - ../data/storage:/srv/brnmail/storage
+      - ../data/bootstrap-cache:/srv/brnmail/bootstrap/cache
+      - ../private/brnmail.env:/srv/brnmail/.env:ro
+      - ../private/backup.key:/run/secrets/backup.key:ro
+
+  web:
+    image: caddy:2
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      BRNMAIL_HOST: ${BRNMAIL_HOST:?Defina o hostname no arquivo .env de deploy}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../app/public:/srv/brnmail/public:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on: [fpm]
+
+secrets:
+  mysql-password:
+    file: ../private/mysql-password
+  mysql-root-password:
+    file: ../private/mysql-root-password
+
+volumes:
+  mysql-data:
+  redis-data:
+  clamav-data:
+  caddy-data:
+  caddy-config:

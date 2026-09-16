@@ -1,0 +1,13 @@
+{
+	admin off
+}
+{$BRNMAIL_HOST} {
+	root * /srv/brnmail/public
+	@private path /.env /.git/* /storage/*
+	respond @private 404
+	request_body {
+		max_size 24MB
+	}
+	php_fastcgi 127.0.0.1:19000
+	file_server
+}

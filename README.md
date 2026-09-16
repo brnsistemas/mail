@@ -47,6 +47,10 @@ docker compose --profile scanner up -d scanner
 
 Verifique saúde e assinaturas do ClamAV. O scanner consome memória adicional; anexos ficam bloqueados se ele estiver indisponível. Não habilite um scanner de teste em produção.
 
+## Instalação em VPS
+
+[Abra o guia completo de instalação em VPS](docs/INSTALACAO_VPS.md): Linux, Docker, HTTPS, banco, filas, scanner, Resend, DNS e backup, com modelos de configuração incluídos.
+
 ## Configuração externa
 
 Siga [o manual](index.md) e [a configuração do Resend](docs/CONFIGURACAO.md). Cadastre seu próprio domínio e credenciais, instale os workers e o scheduler, configure HTTPS e teste backup/restauração. O webhook é `/webhooks/resend` no host da sua instalação.
