@@ -213,8 +213,13 @@ class AdminController extends Controller
 
     public function showInvite(Request $r, string $id)
     {
-        $invite = MailInvite::findOrFail($id);
-        abort_if($invite->accepted_at || $invite->expires_at->isPast(), 410, 'Este convite expirou ou já foi aceito. Peça um novo link ao administrador.');
+        $invite = MailInvite::find($id);
+        if (! $invite) {
+            return $this->unavailableInvite($r, 'invalid', 404);
+        }
+        if ($invite->accepted_at || $invite->expires_at->isPast()) {
+            return $this->unavailableInvite($r, $invite->accepted_at ? 'used' : 'expired');
+        }
         $ready = hash_equals($invite->token_hash, (string) $r->session()->get('mail_invites.'.$id, ''));
 
         return view('auth.invite', [
@@ -230,9 +235,17 @@ class AdminController extends Controller
         $d = $r->validate(['token' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/D']], [
             'token.*' => 'Abra o link completo do convite para continuar.',
         ]);
-        $invite = MailInvite::findOrFail($id);
+        $invite = MailInvite::find($id);
+        if (! $invite) {
+            return $this->unavailableInvite($r, 'invalid', 404);
+        }
         $hash = hash('sha256', $d['token']);
-        abort_if($invite->accepted_at || $invite->expires_at->isPast() || ! hash_equals($invite->token_hash, $hash), 410);
+        if (! hash_equals($invite->token_hash, $hash)) {
+            return $this->unavailableInvite($r, 'invalid');
+        }
+        if ($invite->accepted_at || $invite->expires_at->isPast()) {
+            return $this->unavailableInvite($r, $invite->accepted_at ? 'used' : 'expired');
+        }
         // Only the verified digest stays in this browser session, scoped to the invitation.
         $r->session()->put('mail_invites.'.$id, $hash);
 
@@ -241,6 +254,13 @@ class AdminController extends Controller
 
     public function accept(Request $r, string $id)
     {
+        $invite = MailInvite::find($id);
+        if (! $invite) {
+            return $this->unavailableInvite($r, 'invalid', 404);
+        }
+        if ($invite->accepted_at || $invite->expires_at->isPast()) {
+            return $this->unavailableInvite($r, $invite->accepted_at ? 'used' : 'expired');
+        }
         // Older pages can still submit the fragment directly. Never flash it back.
         $token = $r->input('token');
         $hash = is_string($token) && preg_match('/^[a-f0-9]{64}$/D', $token)
@@ -254,9 +274,14 @@ class AdminController extends Controller
             'password.min' => 'A senha deve ter pelo menos 14 caracteres.',
             'password.confirmed' => 'A confirmação da senha não confere.',
         ]);
-        DB::transaction(function () use ($d, $id, $hash) {
-            $i = MailInvite::lockForUpdate()->findOrFail($id);
-            abort_if($i->accepted_at || $i->expires_at->isPast() || ! hash_equals($i->token_hash, $hash), 410);
+        $unavailable = DB::transaction(function () use ($d, $id, $hash) {
+            $i = MailInvite::lockForUpdate()->find($id);
+            if (! $i || ! hash_equals($i->token_hash, $hash)) {
+                return 'invalid';
+            }
+            if ($i->accepted_at || $i->expires_at->isPast()) {
+                return $i->accepted_at ? 'used' : 'expired';
+            }
             $u = User::where('email', $i->email)->first();
             if ($u) {
                 if (! Hash::check($d['password'], $u->password)) {
@@ -267,10 +292,31 @@ class AdminController extends Controller
             }
             Membership::updateOrCreate(['organization_id' => $i->organization_id, 'user_id' => $u->id], ['active' => true, 'role' => 'member']);
             $i->update(['accepted_at' => now()]);
+
+            return null;
         });
+
+        if ($unavailable) {
+            return $this->unavailableInvite($r, $unavailable);
+        }
 
         $r->session()->forget('mail_invites.'.$id);
 
         return redirect('/login')->with('status', 'Convite aceito. Entre com sua conta para continuar. O acesso às caixas depende de concessão do administrador.');
+    }
+
+    private function unavailableInvite(Request $r, string $state, int $status = 410)
+    {
+        $message = match ($state) {
+            'used' => 'Este convite já foi aceito. Entre com o e-mail e a senha cadastrados. Você não precisa criar outra conta.',
+            'expired' => 'O prazo deste convite terminou. Peça ao administrador um novo link privado.',
+            default => 'Este convite não é válido. Confira se recebeu o link completo ou peça ajuda ao administrador.',
+        };
+
+        if ($r->expectsJson()) {
+            return response()->json(['code' => 'invite_'.$state, 'message' => $message], $status);
+        }
+
+        return response()->view('auth.invite-status', ['state' => $state, 'message' => $message], $status);
     }
 }

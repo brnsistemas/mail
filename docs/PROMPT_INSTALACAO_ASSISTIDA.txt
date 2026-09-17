@@ -88,7 +88,7 @@ Prepare o Docker Engine/Compose pelo procedimento oficial do sistema e os diret�
 
 Gere credenciais fortes e distintas para os serviços e as chaves de criptografia pelo inicializador previsto, somente na primeira instalação. Não exponha valores em chat, Git, histórico, argumentos de processo, logs ou capturas. Não mostre .env, docker inspect ou configurações completas. Preserve arquivos privados e permissões de leitura/escrita por serviço.
 
-Use PHP 8.4, MySQL 8.4, Redis, ClamAV e dependências do composer.lock da revisão escolhida. Confira os requisitos de plataforma e o autoload. Nesta versão, o bootstrap exige MySQL isolado em 127.0.0.1:33461 e banco brnmail; não substitua pelo nome de serviço Docker ou por MariaDB sem revisar o contrato.
+Use PHP 8.4, MySQL 8.4, Redis, ClamAV e dependências do composer.lock da revisão escolhida. Confira os requisitos de plataforma e o autoload. O bootstrap exige MySQL isolado em 127.0.0.1 e banco brnmail. A porta padrão é 33461; se uma adaptação de coexistência exigir outra porta, confirme a mesma porta livre em DB_PORT e BRNMAIL_BOOTSTRAP_DB_PORT e no serviço/mapeamento do MySQL. Preserve a instância existente. Não substitua por nome de serviço Docker nem por MariaDB.
 
 Mantenha APP_ENV=production, APP_DEBUG=false, BRNMAIL_LOCAL_DEMO=false, BRNMAIL_TRANSPORT=resend e BRNMAIL_EXTERNAL_ENABLED=false durante a preparação. Defina APP_URL e BRNMAIL_BOOTSTRAP_URL com o mesmo HTTPS do painel, sem caminho ou parâmetros. Não execute migrate:fresh, db:wipe, FLUSHALL, exclusão de volumes ou restauração sobre dados existentes.
 

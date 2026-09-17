@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Console\Commands\BootstrapMaster;
 use App\Models\User;
 use App\Services\Access;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
@@ -72,6 +73,26 @@ class BootstrapMasterTest extends TestCase
         $this->assertSame($before, $user->fresh()->getRawOriginal());
         $this->assertDatabaseCount('users', 1);
         $this->assertDatabaseCount('mail_audits', 0);
+    }
+
+    public function test_alternative_production_port_requires_explicit_matching_confirmation_without_querying(): void
+    {
+        $queries = 0;
+        DB::listen(function () use (&$queries) {
+            $queries++;
+        });
+        $this->app->detectEnvironment(fn () => 'production');
+        config(['database.connections.mysql.database' => 'brnmail', 'database.connections.mysql.port' => 33462]);
+        $command = app(BootstrapMaster::class);
+        $guard = new \ReflectionMethod($command, 'targetAllowed');
+        $this->assertFalse($guard->invoke($command));
+        config(['brnmail.bootstrap_db_port' => 33462]);
+        $this->assertTrue($guard->invoke($command));
+        foreach (['', 'not-a-port', 0, 1023, 65536, '33462junk'] as $invalid) {
+            config(['brnmail.bootstrap_db_port' => $invalid, 'database.connections.mysql.port' => $invalid]);
+            $this->assertFalse($guard->invoke($command));
+        }
+        $this->assertSame(0, $queries);
     }
 
     public function test_declining_confirmation_creates_nothing_and_releases_lock(): void

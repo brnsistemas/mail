@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class InviteFlowTest extends TestCase
@@ -109,5 +110,47 @@ class InviteFlowTest extends TestCase
         [, , $url] = $this->invitation();
         $this->from($url)->post($url, $this->credentials())->assertRedirect($url)->assertSessionHasErrors(['invite']);
         $this->get($url)->assertSee('Abra o link completo do convite para continuar.')->assertDontSee('The token field is required.');
+    }
+
+    public function test_reopening_an_accepted_invite_guides_to_login_without_exposing_identity_or_resetting_password(): void
+    {
+        [$invite, $token, $url] = $this->invitation();
+        $this->postJson($url.'/open', ['token' => $token])->assertNoContent();
+        $this->post($url, $this->credentials())->assertRedirect('/login');
+        $user = User::where('email', $invite->email)->firstOrFail();
+        $password = $user->getRawOriginal('password');
+
+        $this->get($url)->assertGone()->assertSee('Seu convite já foi aceito.')
+            ->assertSee('Entrar na minha conta')->assertDontSee($invite->email)
+            ->assertDontSee('name="password"', false)->assertDontSee($token);
+        $this->post($url, $this->credentials(['password' => 'A-Different-Password!', 'password_confirmation' => 'A-Different-Password!']))
+            ->assertGone()->assertSee('Seu convite já foi aceito.');
+        $this->postJson($url.'/open', ['token' => $token])->assertGone()->assertJsonPath('code', 'invite_used');
+        $this->assertSame($password, $user->fresh()->getRawOriginal('password'));
+        $this->assertSame(1, User::where('email', $invite->email)->count());
+        $this->assertSame(1, Membership::where('organization_id', $invite->organization_id)->count());
+        $this->assertSame(0, DB::table('mailbox_grants')->where('user_id', $user->id)->count());
+    }
+
+    public function test_expired_and_unknown_invites_have_a_safe_help_page(): void
+    {
+        [$invite, $token, $url] = $this->invitation();
+        $invite->update(['expires_at' => now()->subMinute()]);
+        $this->get($url)->assertGone()->assertSee('Este convite expirou.')->assertSee('novo link privado')
+            ->assertDontSee($invite->email)->assertDontSee('name="password"', false);
+        $this->postJson($url.'/open', ['token' => $token])->assertGone()->assertJsonPath('code', 'invite_expired');
+        $this->post($url, $this->credentials(['token' => $token]))->assertGone()->assertSee('Este convite expirou.');
+        $this->get('/invite/'.Str::uuid())->assertNotFound()->assertSee('Confira o link do convite.');
+        $this->assertNull($invite->fresh()->accepted_at);
+        $this->assertFalse(User::where('email', $invite->email)->exists());
+    }
+
+    public function test_wrong_proof_does_not_disclose_consumed_state_or_create_access(): void
+    {
+        [$invite, , $url] = $this->invitation();
+        $invite->update(['accepted_at' => now()]);
+        $this->postJson($url.'/open', ['token' => str_repeat('0', 64)])
+            ->assertGone()->assertJsonPath('code', 'invite_invalid')->assertDontSee($invite->email);
+        $this->assertSame(0, Membership::where('organization_id', $invite->organization_id)->count());
     }
 }

@@ -28,7 +28,7 @@ Em uma instalação nova, vazia e separada da demonstração, configure `APP_ENV
 
 Defina `APP_URL` e `BRNMAIL_BOOTSTRAP_URL` com o mesmo endereço HTTPS da sua instalação, sem usuário, senha, caminho, query ou fragmento. O segundo campo confirma explicitamente o destino permitido para o primeiro cadastro. Não há host pré-autorizado nesta distribuição.
 
-O comando usa o MySQL 8.4 isolado em `127.0.0.1:33461`, banco `brnmail`, sem DB_URL ou réplicas. Tenha `APP_KEY` válida, execute migrations e rode interativamente:
+O comando usa MySQL 8.4 em loopback, banco `brnmail`, sem DB_URL ou réplicas. A porta padrão é `33461`. Para uma instância nova em outra porta, defina `DB_PORT` e `BRNMAIL_BOOTSTRAP_DB_PORT` com a mesma porta livre, entre 1024 e 65535; a confirmação não cria o banco nem substitui a verificação do destino. O QA continua restrito à porta 33461 e ao banco `brnmail_test`. Tenha `APP_KEY` válida, execute migrations e rode interativamente:
 
 ```sh
 php artisan brnmail:bootstrap-master

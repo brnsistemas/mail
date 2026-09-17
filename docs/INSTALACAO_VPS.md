@@ -69,7 +69,7 @@ df -h
 ss -lntup
 ```
 
-Este exemplo reserva TCP **80, 443, 19000, 33461, 16381 e 13310**. Os quatro últimos são exclusivos de loopback. Se alguma porta estiver ocupada, não mate processos nem substitua serviços: ajuste o projeto de implantação primeiro. O cadastro inicial desta versão exige MySQL em `127.0.0.1:33461`, banco `brnmail`; não basta trocar esse endereço por `mysql:3306` no `.env`.
+Este exemplo reserva TCP **80, 443, 19000, 33461, 16381 e 13310**. Os quatro últimos são exclusivos de loopback. Se alguma porta estiver ocupada, não mate processos nem substitua serviços: ajuste o projeto de implantação primeiro. O cadastro inicial usa por padrão MySQL em `127.0.0.1:33461`, banco `brnmail`. Em uma adaptação revisada para coexistência, uma instância nova pode usar outra porta: defina `DB_PORT` e `BRNMAIL_BOOTSTRAP_DB_PORT` com a mesma porta livre entre 1024 e 65535. O nome do banco continua `brnmail` e o host precisa continuar `127.0.0.1`; não basta usar `mysql:3306`. Ajuste também a porta do serviço MySQL ou do mapeamento Docker, sem alterar a instância existente.
 
 Não é obrigatório usar uma VPS vazia. Entretanto, o bloco de HTTPS abaixo assume 80/443 livres. Em uma VPS com Nginx/Caddy/Traefik existentes, não inicie o serviço `web` deste exemplo; integre o novo virtual host ao proxy existente, com FastCGI em `127.0.0.1:19000` e caminho PHP `/srv/brnmail/public/index.php`. Preserve os sites e certificados já existentes. Essa adaptação exige revisão própria.
 
@@ -194,7 +194,7 @@ docker compose run --rm cli php artisan brnmail:bootstrap-master
 
 Execute em terminal interativo. Digite nome, e-mail de login já controlado por você e uma senha forte de 14 a 72 bytes. A senha é solicitada de forma oculta; não a passe na linha de comando.
 
-Esse comando exige MySQL **8.4**, recusa MariaDB, usa `127.0.0.1:33461`/`brnmail` e não funciona se já houver usuários. Se uma conta já existe, faça login nela. Não recrie master, não redefina senha e não envie convite para resolver um vínculo de caixa.
+Esse comando exige MySQL **8.4**, recusa MariaDB, usa loopback e banco `brnmail` (porta 33461 por padrão, ou outra explicitamente confirmada em `BRNMAIL_BOOTSTRAP_DB_PORT`) e não funciona se já houver usuários. Se uma conta já existe, faça login nela. Não recrie master, não redefina senha e não envie convite para resolver um vínculo de caixa.
 
 O master inicial **não recebe caixas nem acesso a mensagens automaticamente**. Depois do HTTPS, ele configura o autenticador e guarda os códigos de recuperação privadamente.
 
@@ -418,7 +418,7 @@ Para reverter migração de recebimento, restaure exatamente os MX, prioridades 
 |---|---|
 | Certificado não emite | A/AAAA, 80/443, firewall, CDN, CAA e serviço anterior ocupando a porta |
 | 502 no painel | Estado do FPM, bind `127.0.0.1:19000`, memória e caminho `/srv/brnmail/public` |
-| Banco recusado | MySQL 8.4 saudável, senha de arquivo correspondente ao `.env`, porta 33461 e nome do banco |
+| Banco recusado | MySQL 8.4 saudável, senha de arquivo correspondente ao `.env`, porta confirmada em DB_PORT/BRNMAIL_BOOTSTRAP_DB_PORT e nome do banco |
 | Troquei a senha no arquivo e não funcionou | Imagem MySQL usa variáveis de inicialização apenas no volume novo; alterar o arquivo não altera usuário existente |
 | Não cadastra master | Banco já tem usuários, URLs diferentes, MySQL/porta incorretos, ambiente ou gate externo fora do contrato |
 | Caixa não aparece | Falta vínculo ou concessão explícita; não crie outro login nem outro convite |

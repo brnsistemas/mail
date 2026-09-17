@@ -5,14 +5,14 @@ import {test} from 'node:test';
 
 const source = fs.readFileSync(new URL('../../public/invite.js', import.meta.url), 'utf8');
 const syntheticToken = 'a'.repeat(64);
-async function run({fragment = syntheticToken, response = 204, reject = false} = {}) {
+async function run({fragment = syntheticToken, response = 204, reject = false, code = null, ended = false} = {}) {
     const state = {requests: [], removed: false, reloaded: false};
     const status = {textContent: 'Abra o link completo'};
     const page = {dataset: {inviteOpen: '/invite/synthetic-id/open'}, querySelector: () => null};
-    const document = {querySelector: selector => selector === '[data-invite-open]' ? page : {content: 'synthetic-csrf'}, getElementById: () => status};
+    const document = {querySelector: selector => selector === '[data-invite-ended]' ? (ended ? {} : null) : selector === '[data-invite-open]' ? page : {content: 'synthetic-csrf'}, getElementById: () => status};
     const window = {location: {hash: fragment ? '#'+fragment : '', pathname: '/invite/synthetic-id', reload() {state.reloaded = true;}},
         history: {replaceState(a, b, url) {assert.equal(url, '/invite/synthetic-id'); state.removed = true;}}};
-    const fetch = async (url, options) => {state.requests.push({url, options}); if (reject) throw new Error('QA unavailable'); return {status: response};};
+    const fetch = async (url, options) => {state.requests.push({url, options}); if (reject) throw new Error('QA unavailable'); return {status: response, json: async () => ({code})};};
     vm.runInNewContext(source, {document, window, fetch, URLSearchParams});
     await new Promise(resolve => setImmediate(resolve));
     return {state, status};
@@ -44,4 +44,21 @@ test('network failure keeps the private fragment for an explicit retry', async (
 test('malformed fragment never reaches the server', async () => {
     const {state, status} = await run({fragment: 'invalid'});
     assert.equal(state.requests.length, 0); assert.match(status.textContent, /incompleto/);
+});
+for (const code of ['invite_used', 'invite_expired']) {
+    test(code+' strips the private fragment and opens the safe status page', async () => {
+        const {state} = await run({response: 410, code});
+        assert.equal(state.removed, true); assert.equal(state.reloaded, true);
+        assert.equal(state.requests.length, 1);
+    });
+}
+test('ended invite page clears the fragment without exchanging or reloading it', async () => {
+    const {state} = await run({ended: true});
+    assert.equal(state.removed, true); assert.equal(state.reloaded, false);
+    assert.equal(state.requests.length, 0);
+});
+test('invalid proof does not trigger a reload loop', async () => {
+    const {state, status} = await run({response: 410, code: 'invite_invalid'});
+    assert.equal(state.removed, false); assert.equal(state.reloaded, false);
+    assert.match(status.textContent, /não é válido/);
 });

@@ -109,6 +109,8 @@ class BootstrapMaster extends Command
     private function targetAllowed(): bool
     {
         $testing = app()->environment('testing');
+        $expectedPort = $testing ? 33461 : filter_var(config('brnmail.bootstrap_db_port', 33461), FILTER_VALIDATE_INT,
+            ['options' => ['min_range' => 1024, 'max_range' => 65535]]);
         $bootstrapUrl = rtrim((string) config('brnmail.bootstrap_url'), '/');
         $url = parse_url($bootstrapUrl);
         $key = (string) config('app.key');
@@ -133,7 +135,8 @@ class BootstrapMaster extends Command
             && ! config('database.connections.mysql.read')
             && ! config('database.connections.mysql.write')
             && config('database.connections.mysql.host') === '127.0.0.1'
-            && (string) config('database.connections.mysql.port') === '33461'
+            && $expectedPort !== false
+            && (string) config('database.connections.mysql.port') === (string) $expectedPort
             && config('database.connections.mysql.database') === ($testing ? 'brnmail_test' : 'brnmail');
     }
 }

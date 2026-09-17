@@ -1,6 +1,10 @@
 /* Exchange the private fragment for a session proof. Never use browser storage. */
 (() => {
     'use strict';
+    if (document.querySelector('[data-invite-ended]')) {
+        if (window.location.hash) window.history.replaceState(null, '', window.location.pathname);
+        return;
+    }
     const page = document.querySelector('[data-invite-open]');
     if (!page) return;
     const fragment = window.location.hash.slice(1);
@@ -22,8 +26,16 @@
                 body: new URLSearchParams({token: fragment}),
             });
             if (response.status !== 204) {
+                if (response.status === 410 && typeof response.json === 'function') {
+                    const result = await response.json();
+                    if (['invite_used', 'invite_expired'].includes(result.code)) {
+                        window.history.replaceState(null, '', window.location.pathname);
+                        window.location.reload();
+                        return;
+                    }
+                }
                 status.textContent = response.status === 410
-                    ? 'Este convite expirou, já foi aceito ou não é válido. Peça um novo link ao administrador.'
+                    ? 'Este convite não é válido. Confira o link completo compartilhado pelo administrador.'
                     : 'Não foi possível conferir o convite. Abra novamente o link original e tente outra vez.';
                 return;
             }

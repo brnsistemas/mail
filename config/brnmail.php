@@ -2,6 +2,7 @@
 
 return [
     'bootstrap_url' => env('BRNMAIL_BOOTSTRAP_URL'),
+    'bootstrap_db_port' => env('BRNMAIL_BOOTSTRAP_DB_PORT', 33461),
     'transport' => env('BRNMAIL_TRANSPORT', 'local'),
     'external_enabled' => (bool) env('BRNMAIL_EXTERNAL_ENABLED', false),
     'local_demo' => (bool) env('BRNMAIL_LOCAL_DEMO', false),

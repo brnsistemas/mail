@@ -1,6 +1,6 @@
 @extends('layout')
 @section('title','Aceitar convite')
-@push('head')<script src="/invite.js?v=20260911" defer></script>@endpush
+@push('head')<script src="/invite.js?v=20260917" defer></script>@endpush
 @section('content')
 <main id="main" class="auth-card" data-invite-open="/invite/{{ $id }}/open">
     <h1>{{ $ready ? 'Convite para '.$organization : 'Abra seu convite.' }}</h1>
