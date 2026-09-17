@@ -73,6 +73,8 @@ Este exemplo reserva TCP **80, 443, 19000, 33461, 16381 e 13310**. Os quatro úl
 
 Não é obrigatório usar uma VPS vazia. Entretanto, o bloco de HTTPS abaixo assume 80/443 livres. Em uma VPS com Nginx/Caddy/Traefik existentes, não inicie o serviço `web` deste exemplo; integre o novo virtual host ao proxy existente, com FastCGI em `127.0.0.1:19000` e caminho PHP `/srv/brnmail/public/index.php`. Preserve os sites e certificados já existentes. Essa adaptação exige revisão própria.
 
+Se o servidor já oferece PHP 8.4, Nginx e MySQL e a escolha for uma instalação nativa, consulte o [complemento de coexistência](INSTALACAO_COEXISTENTE.md). Ele descreve banco realmente novo, processos exclusivos, portas alternativas e critérios de aceite. Esse perfil deve ser registrado separadamente do teste do roteiro Docker.
+
 ### 2.2 Acesso e rede
 
 No firewall do provedor, permita SSH somente das origens administrativas necessárias e TCP 80/443 para o painel e validação do certificado. Mantenha MySQL, Redis, PHP-FPM e ClamAV inacessíveis pela Internet. A saída deve permitir DNS, sincronização de hora e HTTPS para os provedores/atualizações.
