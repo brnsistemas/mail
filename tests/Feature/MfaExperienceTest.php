@@ -101,7 +101,8 @@ class MfaExperienceTest extends TestCase
         $user = User::factory()->create();
         $user->active = false;
         $user->save();
-        $this->actingAs($user)->get('/two-factor')->assertForbidden();
+        $this->actingAs($user)->get('/two-factor')->assertRedirect('/login');
+        $this->assertGuest();
         $this->assertNull($user->fresh()->totp_secret);
     }
 }

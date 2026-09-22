@@ -7,6 +7,7 @@ use App\Models\Membership;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
@@ -52,8 +53,10 @@ class InviteFlowTest extends TestCase
         $this->from($url)->post($url, $this->credentials(['password_confirmation' => 'Mismatch']))
             ->assertRedirect($url)->assertSessionHasErrors(['password'])
             ->assertSessionMissing('_old_input.password')->assertSessionMissing('_old_input.token');
+        $this->assertGuest();
+        $this->assertFalse(User::where('email', $invite->email)->exists());
         $this->get($url)->assertSee('A confirmação da senha não confere.')->assertSee($invite->email);
-        $this->post($url, $this->credentials())->assertRedirect('/login')->assertSessionMissing('mail_invites.'.$invite->id);
+        $this->post($url, $this->credentials())->assertRedirect('/two-factor')->assertSessionMissing('mail_invites.'.$invite->id);
         $this->assertNotNull($invite->fresh()->accepted_at);
         $this->assertSame(1, Membership::where('organization_id', $invite->organization_id)->count());
         $user = User::where('email', $invite->email)->firstOrFail();
@@ -72,6 +75,7 @@ class InviteFlowTest extends TestCase
         $this->from($url)->post($url, $this->credentials(['password' => 'Wrong-Synthetic-Password!', 'password_confirmation' => 'Wrong-Synthetic-Password!']))
             ->assertRedirect($url)->assertSessionHasErrors(['password']);
         $this->post($url, $this->credentials())->assertRedirect('/login');
+        $this->assertGuest();
         $user->refresh();
         foreach (['password', 'totp_secret', 'totp_confirmed_at', 'security_version', 'name'] as $field) {
             $this->assertSame($original[$field], $user->getRawOriginal($field));
@@ -116,9 +120,10 @@ class InviteFlowTest extends TestCase
     {
         [$invite, $token, $url] = $this->invitation();
         $this->postJson($url.'/open', ['token' => $token])->assertNoContent();
-        $this->post($url, $this->credentials())->assertRedirect('/login');
+        $this->post($url, $this->credentials())->assertRedirect('/two-factor');
         $user = User::where('email', $invite->email)->firstOrFail();
         $password = $user->getRawOriginal('password');
+        $this->post('/logout')->assertRedirect('/login');
 
         $this->get($url)->assertGone()->assertSee('Seu convite já foi aceito.')
             ->assertSee('Entrar na minha conta')->assertDontSee($invite->email)
@@ -152,5 +157,58 @@ class InviteFlowTest extends TestCase
         $this->postJson($url.'/open', ['token' => str_repeat('0', 64)])
             ->assertGone()->assertJsonPath('code', 'invite_invalid')->assertDontSee($invite->email);
         $this->assertSame(0, Membership::where('organization_id', $invite->organization_id)->count());
+    }
+
+    public function test_new_user_selects_password_and_continues_directly_to_mfa_without_mail_access(): void
+    {
+        [$invite, $token, $url] = $this->invitation();
+        $this->assertFalse(User::where('email', $invite->email)->exists());
+        $this->postJson($url.'/open', ['token' => $token])->assertNoContent();
+        $view = $this->get($url)->assertOk();
+        $view->assertSee('autocomplete="username" readonly', false)
+            ->assertSee('Criar minha conta e configurar o autenticador')
+            ->assertDontSee('name="password" value=', false);
+        $this->post($url, $this->credentials(['email' => 'cannot-change-invited-identity@example.test']))
+            ->assertRedirect('/two-factor')->assertSessionMissing('mfa_version');
+        $user = User::where('email', $invite->email)->firstOrFail();
+        $this->assertAuthenticatedAs($user);
+        $this->assertFalse(User::where('email', 'cannot-change-invited-identity@example.test')->exists());
+        $this->assertNull($user->totp_confirmed_at);
+        $this->get('/mail')->assertRedirect('/two-factor');
+        $this->get('/admin')->assertRedirect('/two-factor');
+        $this->get('/two-factor')->assertOk()->assertViewHas('setup', true);
+        $this->assertSame(0, DB::table('mailbox_grants')->where('user_id', $user->id)->count());
+    }
+
+    public function test_new_account_does_not_inherit_the_previous_browser_identity_or_mfa(): void
+    {
+        $previous = User::factory()->create(['master' => true, 'totp_confirmed_at' => now()]);
+        $this->actingAs($previous)->withSession(['mfa_version' => 1, 'mail.active_box' => 99, 'previous_private_state' => 'synthetic']);
+        [$invite, $token, $url] = $this->invitation();
+        $this->postJson($url.'/open', ['token' => $token])->assertNoContent();
+        $oldId = session()->getId();
+        $oldToken = session()->token();
+        $this->post($url, $this->credentials())->assertRedirect('/two-factor')
+            ->assertSessionMissing('mfa_version')->assertSessionMissing('mail.active_box')
+            ->assertSessionMissing('previous_private_state');
+        $user = User::where('email', $invite->email)->firstOrFail();
+        $this->assertAuthenticatedAs($user);
+        $this->assertFalse($user->master);
+        $this->assertNotSame($oldId, session()->getId());
+        $this->assertNotSame($oldToken, session()->token());
+        $this->get('/admin')->assertRedirect('/two-factor');
+        $this->assertTrue($previous->fresh()->master);
+    }
+
+    public function test_reused_invite_cannot_start_a_new_authenticated_session(): void
+    {
+        [$invite, $token, $url] = $this->invitation();
+        $this->postJson($url.'/open', ['token' => $token])->assertNoContent();
+        $this->post($url, $this->credentials())->assertRedirect('/two-factor');
+        $this->post('/logout')->assertRedirect('/login');
+        Auth::forgetGuards();
+        $this->post($url, $this->credentials(['token' => $token]))->assertGone();
+        $this->assertGuest();
+        $this->assertSame(1, User::where('email', $invite->email)->count());
     }
 }

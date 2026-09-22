@@ -38,6 +38,14 @@ php artisan brnmail:bootstrap-master
 
 Informe nome, e-mail pessoal de login e senha privadamente. O comando recusa banco que já possua usuários e não redefine identidades. Entre no HTTPS e configure TOTP e recuperação. Nenhuma caixa é criada ou concedida automaticamente.
 
+## Convites com caixa preparada
+
+Para uma pessoa nova, o convite deve registrar uma caixa específica em domínio já confirmado da empresa. O administrador confirma a própria senha para autorizar leitura e envio. A caixa é criada antes do link; a concessão é aplicada na aceitação. A pessoa escolhe e confirma a senha e segue diretamente para configurar 2FA. O acesso ao webmail depende de concluir o segundo fator.
+
+Se o endereço de login for externo, informe explicitamente a caixa interna. Reutilização de caixa pede confirmação de acesso ao histórico; não libera aliases, caixas sensíveis ou desativadas. O link completo é manual, privado, de uso único e expira em 48 horas. Não o publique nem envie o primeiro acesso para uma caixa que a pessoa ainda não consegue abrir.
+
+Contas existentes continuam em **Permissões por caixa**, sem convite, duplicação de identidade ou troca de senha/2FA. Convites antigos sem caixa não recebem acesso retroativo em lote. Veja [INVITATION_FLOW.md](docs/INVITATION_FLOW.md).
+
 ## Operação
 
 - Separe workers `inbound`, `outbound` e `attachments` e mantenha o scheduler Laravel ativo.
@@ -46,6 +54,7 @@ Informe nome, e-mail pessoal de login e senha privadamente. O comando recusa ban
 - Monitore falhas, supressões, eventos pendentes e scanner. Não reenvie cegamente mensagens de estado incerto.
 - Guarde backup criptografado fora do servidor e teste restauração isolada. Preserve a chave de criptografia por canal seguro separado.
 - Registre release, mudanças, resultados e reversão em documentação privada da sua instalação.
+- Envio normal depende de homologação e decisão explícita para `BRNMAIL_RESTRICT_TEST_RECIPIENTS=false`. O padrão é `true`; nunca copie a política ou configuração privada de outra instalação.
 
 ## Critérios de aceite
 

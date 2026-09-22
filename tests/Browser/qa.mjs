@@ -51,6 +51,32 @@ try {
  assert.equal(download.suggestedFilename(),'brnmail-codigos-recuperacao.txt');await download.delete();record('one-time-recovery-download');
  await page.evaluate(()=>navigator.clipboard.writeText('')); // Erase the synthetic secret after the copy check.
  await page.getByRole('link',{name:/Guardei os códigos/}).click(); await page.waitForURL('**/mail');
+ const forbidden=[];context.on('request',request=>{if(request.url().includes('/qa-forbidden-'))forbidden.push(request.url());});
+ await page.goto(base+'/mail?box='+user.box+'&message='+user.html_message);
+ const reader=page.frameLocator('iframe.mail-html');
+ await reader.getByRole('link',{name:'Aceitar convite',exact:true}).waitFor();
+ assert.equal(await reader.getByRole('link',{name:'Aceitar convite',exact:true}).evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(23, 92, 211)');
+ assert.equal(await reader.locator('script,img,form,input,iframe').count(),0);
+ assert.equal(await page.locator('body').getAttribute('data-compromised'),null);
+ assert.equal(await page.locator('iframe.mail-html').getAttribute('sandbox'),'allow-popups allow-popups-to-escape-sandbox');
+ for(const width of [390,1440]) {
+   await page.setViewportSize({width,height:1050});
+   assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'HTML parent layout overflow');
+   assert(await reader.getByRole('link',{name:'Aceitar convite',exact:true}).isVisible());
+   record('isolated-html-layout',{width});
+ }
+ const popupPromise=page.waitForEvent('popup');
+ await reader.getByRole('link',{name:'Aceitar convite',exact:true}).click();
+ const popup=await popupPromise;await popup.waitForLoadState('domcontentloaded');
+ assert.equal(new URL(popup.url()).searchParams.get('qa'),'html-link');
+ assert.equal(await popup.evaluate(()=>window.opener===null),true);
+ await popup.close();assert.equal(forbidden.length,0);record('html-button-synthetic-link-and-no-active-content');
+ await page.getByRole('button',{name:'Marcar como spam',exact:true}).click();
+ await page.getByRole('navigation',{name:'Pastas'}).getByRole('link',{name:/Spam/}).click();
+ await page.getByRole('link').filter({hasText:'QA HTML e Spam'}).click();
+ assert(await page.getByRole('button',{name:'Não é spam',exact:true}).isVisible());
+ await page.getByRole('button',{name:'Não é spam',exact:true}).click();
+ assert(await page.getByRole('link').filter({hasText:'QA HTML e Spam'}).isVisible());record('spam-roundtrip');
  for(const theme of ['light','dark']) for(const width of [360,390,768,1024,1440]) {
    await page.setViewportSize({width,height:1000});
    await page.evaluate(t=>{document.documentElement.dataset.theme=t;localStorage.setItem('brnmail-theme',t)},theme);
@@ -96,17 +122,52 @@ try {
  await page.locator('#draft-form [name=to]').fill('destinatario@example.test');
  const subject='QA navegador '+Date.now();
  await page.locator('#draft-form [name=subject]').fill(subject);await page.locator('#draft-form [name=body_text]').fill('Mensagem sintética. Nenhum envio externo.');
- await page.locator('#send-form button').click();assert.match(await page.locator('#draft-state').innerText(),/Salve o rascunho/);record('unsaved-draft-cannot-send');
+ // A single Send persists the current fields; invalid recipients stay in the composer.
  await page.locator('#draft-form [name=to]').fill('endereco-invalido');
- await Promise.all([page.waitForResponse(r=>r.request().method()==='POST' && r.url().includes('/drafts/')),page.locator('#draft-form button').click()]);
- assert.match(await page.locator('#draft-state').innerText(),/texto continua/);assert.equal(await page.locator('#draft-form [name=body_text]').inputValue(),'Mensagem sintética. Nenhum envio externo.');record('validation-error-preserves-unsaved-body');
+ await page.locator('#send-form button').click();
+ await page.waitForFunction(()=>document.getElementById('send-state').textContent.includes('texto continua'));
+ assert.equal(await page.locator('#draft-form [name=body_text]').inputValue(),'Mensagem sintética. Nenhum envio externo.');record('send-validation-preserves-current-body');
  await page.locator('#draft-form [name=to]').fill('destinatario@example.test');
- await Promise.all([page.waitForResponse(r=>r.request().method()==='POST' && r.url().includes('/drafts/')),page.locator('#draft-form button').click()]);
- await page.getByText('Versão salva: 2',{exact:true}).waitFor();record('draft-persisted');
+ await page.locator('#draft-form [name=body_text]').fill('Última edição enviada sem salvar separadamente.');
  await Promise.all([page.waitForNavigation(),page.locator('#send-form button').click()]);
  const pump=spawnSync('php',['artisan','brnmail:pump','--inline'],{encoding:'utf8'});assert.equal(pump.status,0);
  await page.goto(base+'/mail?box='+user.box+'&folder=sent');await page.getByRole('heading',{name:subject}).click();
- assert.match(await page.locator('.reading-toolbar').innerText(),/Processado localmente/);record('local-send-durable-outbox');
+ assert.match(await page.locator('.reading-toolbar').innerText(),/Processado localmente/);
+ assert.match(await page.locator('.mail-body').innerText(),/Última edição enviada sem salvar separadamente/);record('one-click-save-and-local-send');
+ // Real upload remains quarantined in this CI; the controlled status response tests failure UX.
+ await page.getByRole('button',{name:/Escrever e-mail/}).click();await page.waitForSelector('#draft-form');
+ await page.locator('#draft-form [name=to]').fill('destinatario@example.test');
+ await page.locator('#draft-form [name=subject]').fill('QA anexo controlado');
+ await page.locator('#draft-form [name=body_text]').fill('Preservar texto e anexo no bloqueio.');
+ await page.locator('.upload-form input[type=file]').setInputFiles({name:'qa.txt',mimeType:'text/plain',buffer:Buffer.from('Arquivo sintético de QA')});
+ let sends=0;const sendObserver=request=>{if(request.method()==='POST'&&request.url().endsWith('/send'))sends++;};page.on('request',sendObserver);
+ await page.route('**/drafts/*/status',async route=>{
+   const original=await route.fetch();const data=await original.json();
+   assert.equal(data.attachments.length,1,'Selected file uploaded exactly once');
+   data.attachments=data.attachments.map(a=>({...a,status:'blocked'}));
+   await route.fulfill({response:original,json:data});
+ });
+ await page.locator('#send-form button').click();
+ await page.waitForFunction(()=>document.getElementById('send-state').textContent.includes('anexo bloqueado'));
+ assert.equal(await page.locator('.upload-form input[type=file]').inputValue(),'');
+ assert.equal(await page.locator('#draft-form [name=body_text]').inputValue(),'Preservar texto e anexo no bloqueio.');
+ assert.equal(sends,0);record('selected-file-uploaded-and-send-stopped-before-unsafe-attachment');
+ await page.locator('#send-form button').click();
+ await page.waitForFunction(()=>!document.querySelector('#send-form button').disabled);
+ assert.equal(sends,0);record('retry-does-not-reupload-or-send-blocked-attachment');
+ await page.unroute('**/drafts/*/status');page.off('request',sendObserver);
+ await page.reload();assert.equal(await page.locator('.attachment-list .attachment').count(),1);
+ await page.getByRole('button',{name:'Remover qa.txt',exact:true}).click();
+ // A lost save response must preserve the text and prevent an uncertain send/retry.
+ await page.locator('#draft-form [name=body_text]').fill('Texto preservado na falha de conexão.');
+ const saveUrl=await page.locator('#draft-form').getAttribute('action');
+ await page.route(base+saveUrl,route=>route.abort());
+ await page.locator('#send-form button').click();
+ await page.waitForFunction(()=>document.getElementById('send-state').textContent.includes('conexão não confirmou'));
+ assert.equal(await page.locator('#draft-form [name=body_text]').inputValue(),'Texto preservado na falha de conexão.');
+ await page.locator('#send-form button').click();
+ assert.match(await page.locator('#send-state').innerText(),/operação anterior não foi confirmada/);record('network-failure-preserves-text-and-prevents-blind-retry');
+ await page.unroute(base+saveUrl);page.on('dialog',dialog=>dialog.accept());
  await page.goto(base+'/admin');await page.getByRole('heading',{name:'Administração',exact:true}).waitFor();
  for(const width of [390,1440]) {await page.setViewportSize({width,height:1000});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();assert.equal(axe.violations.length,0,'Admin a11y: '+axe.violations.map(v=>v.id).join(','));record('admin-layout-accessibility',{width});}
  assert.equal(external.length,0,'No external network permitted during browser QA');assert.equal(errors.length,0,'Browser script errors');

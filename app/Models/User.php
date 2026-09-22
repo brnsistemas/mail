@@ -10,7 +10,7 @@ use Illuminate\Notifications\Notifiable;
 
 class User extends Authenticatable
 {
-    protected $attributes = ['active' => true, 'master' => false, 'security_version' => 1];
+    protected $attributes = ['active' => true, 'master' => false, 'security_version' => 1, 'credential_version' => 0];
 
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
@@ -53,6 +53,7 @@ class User extends Authenticatable
             'totp_secret' => 'encrypted',
             'recovery_hashes' => 'array',
             'totp_confirmed_at' => 'datetime',
+            'last_login_at' => 'datetime',
         ];
     }
 }

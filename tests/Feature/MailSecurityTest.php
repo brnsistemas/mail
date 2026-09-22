@@ -280,12 +280,13 @@ class MailSecurityTest extends TestCase
 
     public function test_external_send_requires_explicit_gate(): void
     {
-        config(['brnmail.transport' => 'resend']);
+        config(['brnmail.transport' => 'resend', 'brnmail.external_enabled' => true]);
         $m = $this->draft();
         $this->box->domain->update(['status' => 'verified']);
         config(['brnmail.test_recipients' => ['recipient@example.test']]);
         $s = app(OutgoingMail::class);
         $o = $s->queue($m, $this->user, 1);
+        config(['brnmail.external_enabled' => false]);
         $s->process($o->id);
         $this->assertSame('external_disabled', $o->fresh()->last_error);
         Http::assertNothingSent();
@@ -890,10 +891,11 @@ class MailSecurityTest extends TestCase
 
     public function test_unsanctioned_recipient_never_reaches_resend(): void
     {
-        config(['brnmail.external_enabled' => true, 'brnmail.transport' => 'resend', 'brnmail.resend_key' => 'fake-key', 'brnmail.test_recipients' => []]);
+        config(['brnmail.external_enabled' => true, 'brnmail.transport' => 'resend', 'brnmail.resend_key' => 'fake-key', 'brnmail.test_recipients' => ['recipient@example.test']]);
         $this->box->domain->update(['status' => 'verified']);
         $m = $this->draft();
         $o = app(OutgoingMail::class)->queue($m, $this->user, 1);
+        config(['brnmail.test_recipients' => []]);
         app(OutgoingMail::class)->process($o->id);
         $this->assertSame('recipient_not_approved', $o->fresh()->last_error);
         Http::assertNothingSent();
@@ -1081,7 +1083,7 @@ class MailSecurityTest extends TestCase
         $token = bin2hex(random_bytes(32));
         $invite = MailInvite::create(['organization_id' => $this->box->domain->product->organization_id, 'email' => 'new@example.test', 'token_hash' => hash('sha256', $token), 'expires_at' => now()->addHours(1)]);
         $payload = ['token' => $token, 'name' => 'Novo', 'password' => 'Long-Local-Password!', 'password_confirmation' => 'Long-Local-Password!'];
-        $this->post('/invite/'.$invite->id, $payload)->assertRedirect('/login');
+        $this->post('/invite/'.$invite->id, $payload)->assertRedirect('/two-factor');
         $this->post('/invite/'.$invite->id, $payload)->assertStatus(410);
         $new = User::where('email', 'new@example.test')->firstOrFail();
         $this->assertFalse(app(Access::class)->allowed($new, $this->box->id));

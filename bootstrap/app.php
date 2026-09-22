@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\RequireCredentialVersion;
 use App\Http\Middleware\RequireMfa;
 use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
@@ -14,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias(['mfa' => RequireMfa::class]);
+        $middleware->alias(['mfa' => RequireMfa::class, 'credential.version' => RequireCredentialVersion::class]);
         $middleware->append(SecurityHeaders::class);
         $middleware->validateCsrfTokens(except: ['webhooks/resend']);
     })

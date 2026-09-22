@@ -29,6 +29,13 @@ final class OutgoingMail
             abort_unless($m->status === 'draft' && $m->author_id === $user->id && $m->version === $version, 409, 'Rascunho mudou. Atualize antes de enviar.');
             $dest = array_merge($m->recipients['to'] ?? [], $m->recipients['cc'] ?? [], $m->recipients['bcc'] ?? []);
             abort_if(! $dest || ! trim($m->subject) || ! trim($m->body_text), 422, 'Preencha destinatário, assunto e mensagem.');
+            if (config('brnmail.transport') !== 'local') {
+                abort_unless(config('brnmail.external_enabled'), 422, 'O envio externo está desativado. O rascunho foi preservado.');
+                if (config('brnmail.restrict_test_recipients')) {
+                    $allow = array_map('strtolower', ProviderSetting::valueFor('test_recipients'));
+                    abort_if(array_diff(array_map('strtolower', $dest), $allow), 422, 'Envio em homologação: há destinatário fora da lista autorizada. O administrador precisa liberar o envio; seu rascunho foi preservado.');
+                }
+            }
             abort_if($m->attachments()->where('status', '!=', 'clean')->exists(), 422, 'Anexos precisam ser aprovados pela verificação.');
             Mailbox::whereKey($m->mailbox_id)->lockForUpdate()->first();
             abort_if(MailOutbox::whereHas('message', fn ($q) => $q->where('mailbox_id', $m->mailbox_id))->where('created_at', '>=', now()->startOfDay())->count() >= config('brnmail.daily_limit'), 429, 'Limite diário da caixa.');
@@ -103,7 +110,7 @@ final class OutgoingMail
                 }
                 $allow = array_map('strtolower', ProviderSetting::valueFor('test_recipients'));
                 foreach ($dest as $email) {
-                    if (! in_array(strtolower($email), $allow, true)) {
+                    if (config('brnmail.restrict_test_recipients') && ! in_array(strtolower($email), $allow, true)) {
                         throw new RuntimeException('recipient_not_approved');
                     }
                 }

@@ -8,7 +8,10 @@ Esta distribuição contém código, exemplos fictícios e instruções de insta
 
 - Uma conta humana pode alternar entre as caixas às quais recebeu acesso explícito.
 - Empresas e caixas têm permissões independentes; ser master não concede leitura automática.
-- Caixa de entrada, rascunhos, envio, resposta, arquivamento, lixeira, busca e responsável pela conversa.
+- Caixa de entrada, rascunhos, envio em um clique, resposta, arquivamento, Spam manual, lixeira, busca e responsável pela conversa.
+- Leitura de HTML sanitizado com botões e tabelas, sem carregar imagens remotas ou executar scripts.
+- Convite que prepara a caixa do colaborador; ele escolhe a senha e configura o 2FA.
+- Inventário do master com caixas, permissões e último 2FA registrado, sem acesso implícito ao conteúdo.
 - Autenticação com senha, segundo fator TOTP e códigos de recuperação.
 - Recebimento por webhook assinado, processamento em filas, idempotência e reconciliação.
 - Anexos privados e criptografados, com validação de formato e varredura antes da liberação.
@@ -47,6 +50,12 @@ docker compose --profile scanner up -d scanner
 
 Verifique saúde e assinaturas do ClamAV. O scanner consome memória adicional; anexos ficam bloqueados se ele estiver indisponível. Não habilite um scanner de teste em produção.
 
+## Material para alunos
+
+- [Baixar o guia em PDF](https://github.com/brnsistemas/mail/releases/latest/download/BRN-Mail-Guia-de-Instalacao.pdf).
+- [O que mudou nesta edição](docs/ATUALIZACAO_2026_09.md).
+- [Tutorial completo](docs/INSTALACAO_VPS.md) e [prompt pronto em texto](docs/PROMPT_INSTALACAO_ASSISTIDA.txt).
+
 ## Instalação em VPS
 
 [Abra o guia completo de instalação em VPS](docs/INSTALACAO_VPS.md): Linux, Docker, HTTPS, banco, filas, scanner, Resend, DNS e backup, com modelos de configuração incluídos.
@@ -57,9 +66,9 @@ Quer fazer a instalação com ajuda de um agente? Use o [prompt completo para Co
 
 Siga [o manual](index.md) e [a configuração do Resend](docs/CONFIGURACAO.md). Cadastre seu próprio domínio e credenciais, instale os workers e o scheduler, configure HTTPS e teste backup/restauração. O webhook é `/webhooks/resend` no host da sua instalação.
 
-Esta versão mantém uma lista de destinatários autorizados para o envio real. Habilitar o provedor não remove essa barreira: o operador cadastra os destinatários de homologação no painel. Não é um produto de disparo em massa.
+A instalação começa com envio externo desativado e `BRNMAIL_RESTRICT_TEST_RECIPIENTS=true`. Na homologação, o operador cadastra os destinatários autorizados. Após comprovar o ciclo real e autorizar uso normal, pode definir essa opção como `false`, atualizar o cache e reiniciar os processos da própria instalação. Permissões, domínio verificado, supressões, limites e varredura de anexos continuam obrigatórios. Não é um produto de disparo em massa.
 
-Convites de acesso são compartilhados por link manual. A integração de aplicações externas e a entrega automática de convites não são fornecidas como uma API pública pronta.
+Convites de acesso são compartilhados por link manual de uso único, válido por 48 horas. Para uma pessoa nova, o master confirma uma caixa em domínio da empresa; ela é preparada antes do compartilhamento e a concessão de leitura/envio é aplicada no aceite. Contas existentes usam **Permissões por caixa**, sem outro convite. Veja [o fluxo completo](docs/INVITATION_FLOW.md). A integração de aplicações externas e a entrega automática de convites não são fornecidas como uma API pública pronta.
 
 ## Testes
 

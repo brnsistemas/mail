@@ -34,4 +34,4 @@ Teste anexos limpos e falhas de scanner de forma controlada. Sem varredura aprov
 
 ## Limites atuais
 
-A lista de destinatários autorizados é aplicada ao envio real. As caixas não fornecem credenciais IMAP/SMTP para conectar outros aplicativos. Não há contrato público de API para integração de sistemas nem automação pronta de convites; esses fluxos precisam de implementação própria e homologação.
+Com `BRNMAIL_RESTRICT_TEST_RECIPIENTS=true` (padrão), a lista de destinatários autorizados é aplicada ao envio real. Depois da homologação e autorização do responsável, `false` permite destinatários normais; atualize cache e reinicie processos. Os demais controles continuam ativos. As caixas não fornecem credenciais IMAP/SMTP para conectar outros aplicativos. Não há contrato público de API para integração de sistemas nem automação pronta de convites; esses fluxos precisam de implementação própria e homologação.
