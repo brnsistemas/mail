@@ -1,7 +1,7 @@
 # Instalação do BRN Mail em VPS
 
 **Guia da distribuição pública:** <https://github.com/brnsistemas/mail>  
-**Revisão do documento:** 16/09/2026. Base funcional: `fd8f79d` ou versão posterior compatível.
+**Revisão do documento:** edição 2026.09. Use a release pública correspondente e registre seu commit. Veja [as mudanças e cuidados de atualização](ATUALIZACAO_2026_09.md).
 
 **Instalação guiada por agente:** copie o [prompt completo para Codex ou Claude Code](PROMPT_INSTALACAO_ASSISTIDA.md). Ele usa este guia e conduz a escolha da VPS, acesso, instalação, usuários e homologação, inclusive quando você ainda não tem experiência com servidores.
 
@@ -9,7 +9,7 @@ Este guia instala o BRN Mail em uma **VPS Linux x86_64 de qualquer provedor**, c
 
 Você terá webmail HTTPS, MySQL, Redis, três filas, scheduler e ClamAV. **O Resend faz o transporte externo dos e-mails.** Não é necessário instalar Postfix, Dovecot ou outro servidor SMTP/IMAP; as portas 25, 465, 587 e 993 não fazem parte desta instalação.
 
-> A instalação não fornece domínio, assinatura de provedor ou caixas prontas. A versão mantém uma lista de destinatários autorizados para envio. Instalar não remove essa restrição nem comprova entrega real. Este documento não é um atestado de que a sua VPS já foi homologada.
+> A instalação não fornece domínio, assinatura de provedor ou caixas prontas. O padrão de homologação mantém uma lista de destinatários autorizados para envio. A liberação de envio normal é uma decisão explícita depois dos testes, conforme a seção 10. Instalar não comprova entrega real. Este documento não é um atestado de que a sua VPS já foi homologada.
 
 ## Sumário
 
@@ -327,7 +327,13 @@ No painel, crie ou reutilize nesta ordem: **empresa → produto → domínio →
 
 Crie apenas os endereços necessários. Para quem já tem conta, vá a **Permissões por caixa**, selecione a pessoa, marque as caixas e, se faltar vínculo, use a opção de vincular às empresas selecionadas. Conceda leitura e/ou envio; caixas sensíveis precisam de concessão explícita adicional. O master não tem leitura implícita.
 
-A mesma pessoa usa seu login e autenticador e alterna as caixas no seletor. Não há senha individual IMAP/SMTP para cada endereço. Para uma pessoa nova, use o convite privado de uso único; nesta versão a entrega do link é manual. Nunca dependa de uma caixa ainda sem recebimento para entregar o primeiro acesso.
+A mesma pessoa usa seu login e autenticador e alterna as caixas no seletor. Não há senha individual IMAP/SMTP para cada endereço.
+
+**Para um novo colaborador:** confirme primeiro o domínio da empresa no painel. Em **Convite individual**, selecione a empresa, informe o e-mail de login e a caixa desejada (o padrão é usar o mesmo endereço). Confirme sua senha de administrador para autorizar leitura/envio. A caixa é criada antes de compartilhar o link. Para reutilizar uma caixa existente, autorize explicitamente acesso ao histórico; caixas sensíveis ou desativadas exigem revisão separada. Para login externo, informe uma caixa do domínio da empresa.
+
+Compartilhe o link completo privadamente por um canal que a pessoa já acessa. A entrega do link é manual; ele expira em 48 horas e tem uso único. O colaborador escolhe e repete a senha, segue direto ao 2FA e guarda os códigos de recuperação. Após concluir, a caixa preparada aparece no seletor com leitura e envio. O convite não concede master nem outras caixas. Nunca dependa da própria caixa nova para entregar seu primeiro acesso.
+
+**Para uma pessoa já cadastrada:** use somente **Permissões por caixa**. Convites antigos aceitos sem caixa não são corrigidos em lote; revise o acesso exato pelo painel, preservando senha, 2FA e mensagens. Consulte [convites](INVITATION_FLOW.md) e [permissões](MAILBOX_GRANTS.md). Criar caixa não substitui a homologação de DNS, webhook e filas.
 
 ## 10. Homologação real
 
@@ -349,6 +355,12 @@ Escolha uma conta externa que o operador controla e inclua-a na lista autorizada
 Aceito pelo Resend, entregue ao servidor externo e recebido/aberto são estados diferentes. Não teste com clientes, convites reais ou recuperação da senha do administrador. EICAR só em scanner controlado, nunca por e-mail externo.
 
 Os limites de anexos são 5 arquivos, 10 MiB cada e 20 MiB no total; vídeos são bloqueados. Configure o proxy e o PHP sem aumentar os limites de negócio. Nenhum antivírus garante detectar todo conteúdo malicioso.
+
+### Depois da homologação: envio normal
+
+Mantenha `BRNMAIL_RESTRICT_TEST_RECIPIENTS=true` durante os testes. Após o responsável autorizar e a matriz de ida e volta estar aprovada, altere apenas essa chave para `false` no arquivo privado de ambiente. Preserve chaves, DNS, `APP_KEY` e demais controles. Mantenha `BRNMAIL_EXTERNAL_ENABLED=true` somente com o transporte real pronto.
+
+Atualize `config:cache` na CLI do modelo e reinicie FPM, inbound, outbound, attachments e scheduler para que todos usem a mesma configuração. Isso permite destinatários normais; não desativa supressões, quotas, autenticação, permissões ou varredura. Não dispara rascunhos ou campanhas automaticamente. Para voltar à restrição de homologação, restaure `true`, recacheie e reinicie os mesmos processos.
 
 ## 11. Backup e restauração
 
@@ -442,7 +454,7 @@ Consulte logs privadamente, por serviço. Não publique `docker inspect` complet
 
 ## 14. Cobertura e referências
 
-Este guia foi conferido contra o código público e inclui modelos em [docs/vps](vps/). Na preparação foram verificados:
+Este guia foi conferido contra o código público e inclui modelos em [docs/vps](vps/). Os resultados abaixo registram a preparação dos modelos de 16/09/2026, não uma nova implantação feita nesta edição. Consulte a CI da release para os testes do código atualizado:
 
 | Verificação | Resultado |
 |---|---|

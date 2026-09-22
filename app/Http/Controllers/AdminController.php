@@ -12,8 +12,12 @@ use App\Models\Product;
 use App\Models\ProviderSetting;
 use App\Models\User;
 use App\Services\Access;
+use App\Services\AccountReactivation;
+use App\Services\AdminMailboxInventory;
 use App\Services\DomainStatus;
+use App\Services\InvitationMailbox;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -25,11 +29,17 @@ class AdminController extends Controller
         abort_unless($r->user()->master, 403);
     }
 
-    public function index(Request $r)
+    public function index(Request $r, AdminMailboxInventory $inventory)
     {
         $this->master($r);
 
-        return view('admin.index', ['organizations' => Organization::all(), 'products' => Product::all(), 'domains' => MailDomain::all(), 'boxes' => Mailbox::with('domain.product', 'grants')->get(), 'users' => User::select('id', 'name', 'email', 'active', 'totp_confirmed_at')->get(), 'events' => DB::table('webhook_events')->select('id', 'type', 'status', 'last_error', 'created_at')->latest()->limit(20)->get(), 'audits' => DB::table('mail_audits')->latest()->limit(20)->get(), 'outbox' => DB::table('mail_outbox')->select('status', DB::raw('COUNT(*) as total'))->groupBy('status')->get(), 'hasProviderKey' => (bool) ProviderSetting::valueFor('api_key')]);
+        $users = User::select('id', 'name', 'email', 'active', 'master', 'totp_confirmed_at')
+            ->selectSub(DB::table('mail_audits')->selectRaw('MAX(created_at)')
+                ->whereColumn('actor_id', 'users.id')->where('action', 'mfa.verified'), 'last_login_at')
+            ->orderBy('name')->orderBy('id')->get();
+        $boxes = Mailbox::with('domain.product.organization', 'grants')->orderBy('mail_domain_id')->orderBy('address')->get();
+
+        return view('admin.index', ['organizations' => Organization::all(), 'products' => Product::all(), 'domains' => MailDomain::all(), 'boxes' => $boxes, 'users' => $users, 'inventory' => $inventory->rows($boxes, $users), 'events' => DB::table('webhook_events')->select('id', 'type', 'status', 'last_error', 'created_at')->latest()->limit(20)->get(), 'audits' => DB::table('mail_audits')->latest()->limit(20)->get(), 'outbox' => DB::table('mail_outbox')->select('status', DB::raw('COUNT(*) as total'))->groupBy('status')->get(), 'hasProviderKey' => (bool) ProviderSetting::valueFor('api_key')]);
     }
 
     public function provider(Request $r, Access $access)
@@ -185,16 +195,35 @@ class AdminController extends Controller
         return back()->with('status', 'Permissões atualizadas nas '.count($ids).' caixas selecionadas. Sessões anteriores desse usuário exigirão novo 2FA.');
     }
 
-    public function invite(Request $r, Access $access)
+    public function invite(Request $r, Access $access, InvitationMailbox $mailboxes)
     {
         $this->master($r);
-        $d = $r->validate(['organization_id' => 'required|exists:organizations,id', 'email' => 'required|email|max:254']);
-        $d['email'] = strtolower($d['email']);
+        $d = $r->validate(['organization_id' => 'required|exists:organizations,id', 'email' => 'required|email|max:254',
+            'mailbox_address' => 'nullable|email|max:254', 'reuse_mailbox' => 'sometimes|boolean', 'password' => 'required|string']);
+        if (! Hash::check($d['password'], $r->user()->password)) {
+            throw ValidationException::withMessages(['password' => 'Confirme sua senha atual para autorizar a caixa deste convite.']);
+        }
+        $d['email'] = strtolower(trim($d['email']));
         $token = bin2hex(random_bytes(32));
-        $i = MailInvite::create($d + ['token_hash' => hash('sha256', $token), 'expires_at' => now()->addHours(48)]);
-        $access->audit($r->user(), 'invite.created', null, $i->id);
+        $i = DB::transaction(function () use ($d, $r, $token, $mailboxes, $access) {
+            // Serialize invitations per company, including repeated submissions.
+            Organization::whereKey($d['organization_id'])->lockForUpdate()->firstOrFail();
+            if (User::where('email', $d['email'])->exists()) {
+                throw ValidationException::withMessages(['email' => 'Esta pessoa já tem conta. Use Permissões por caixa, sem enviar outro convite.']);
+            }
+            if (MailInvite::where('email', $d['email'])->whereNull('accepted_at')->where('expires_at', '>', now())->exists()) {
+                throw ValidationException::withMessages(['email' => 'Já existe um convite pendente para esta pessoa. Nenhum convite ou caixa duplicado foi criado.']);
+            }
+            $box = $mailboxes->prepare($r->user(), (int) $d['organization_id'], $d['mailbox_address'] ?? $d['email'], $r->boolean('reuse_mailbox'));
+            $invite = MailInvite::create(['organization_id' => $d['organization_id'], 'email' => $d['email'],
+                'mailbox_id' => $box->id, 'mailbox_address' => $box->address,
+                'token_hash' => hash('sha256', $token), 'expires_at' => now()->addHours(48)]);
+            $access->audit($r->user(), 'invite.created', $box->id, $invite->id);
 
-        return view('admin.invite', ['link' => url('/invite/'.$i->id).'#'.$token]);
+            return $invite;
+        }, 3);
+
+        return view('admin.invite', ['link' => url('/invite/'.$i->id).'#'.$token, 'mailboxAddress' => $i->mailbox_address]);
     }
 
     public function revokeMember(Request $r, Access $access)
@@ -226,7 +255,9 @@ class AdminController extends Controller
             'id' => $id, 'ready' => $ready,
             'email' => $ready ? $invite->email : null,
             'organization' => $ready ? Organization::findOrFail($invite->organization_id)->name : null,
-            'existingAccount' => $ready && User::where('email', $invite->email)->exists(),
+            'reactivation' => $ready && (bool) $invite->reactivation_user_id,
+            'existingAccount' => $ready && ! $invite->reactivation_user_id && User::where('email', $invite->email)->exists(),
+            'mailboxAddress' => $ready ? $invite->mailbox_address : null,
         ]);
     }
 
@@ -274,7 +305,8 @@ class AdminController extends Controller
             'password.min' => 'A senha deve ter pelo menos 14 caracteres.',
             'password.confirmed' => 'A confirmação da senha não confere.',
         ]);
-        $unavailable = DB::transaction(function () use ($d, $id, $hash) {
+        $createdUser = null;
+        $unavailable = DB::transaction(function () use ($d, $id, $hash, &$createdUser) {
             $i = MailInvite::lockForUpdate()->find($id);
             if (! $i || ! hash_equals($i->token_hash, $hash)) {
                 return 'invalid';
@@ -282,15 +314,33 @@ class AdminController extends Controller
             if ($i->accepted_at || $i->expires_at->isPast()) {
                 return $i->accepted_at ? 'used' : 'expired';
             }
-            $u = User::where('email', $i->email)->first();
+            if ($i->reactivation_user_id) {
+                $createdUser = app(AccountReactivation::class)->accept($i, $d['password']);
+                if (! $createdUser) {
+                    return 'invalid';
+                }
+                $i->update(['accepted_at' => now()]);
+
+                return null;
+            }
+            $u = User::where('email', $i->email)->lockForUpdate()->first();
             if ($u) {
+                if (! $u->active) {
+                    throw ValidationException::withMessages(['invite' => 'Esta conta está desativada. Peça ao administrador para revisar o acesso.']);
+                }
                 if (! Hash::check($d['password'], $u->password)) {
                     throw ValidationException::withMessages(['password' => 'Use a senha atual da sua conta no BRN Mail.']);
                 }
             } else {
                 $u = User::create(['email' => $i->email, 'name' => $d['name'], 'password' => $d['password']]);
+                $createdUser = $u;
             }
-            Membership::updateOrCreate(['organization_id' => $i->organization_id, 'user_id' => $u->id], ['active' => true, 'role' => 'member']);
+            $membership = Membership::where('organization_id', $i->organization_id)->where('user_id', $u->id)->lockForUpdate()->first();
+            if ($membership && ! $membership->active) {
+                throw ValidationException::withMessages(['invite' => 'O acesso a esta empresa foi revogado. Peça ao administrador para revisá-lo.']);
+            }
+            Membership::firstOrCreate(['organization_id' => $i->organization_id, 'user_id' => $u->id], ['active' => true, 'role' => 'member']);
+            app(InvitationMailbox::class)->grant($i, $u);
             $i->update(['accepted_at' => now()]);
 
             return null;
@@ -302,7 +352,20 @@ class AdminController extends Controller
 
         $r->session()->forget('mail_invites.'.$id);
 
-        return redirect('/login')->with('status', 'Convite aceito. Entre com sua conta para continuar. O acesso às caixas depende de concessão do administrador.');
+        if ($createdUser) {
+            // Start a fresh session only after the invitation transaction commits.
+            // Never inherit another account's MFA or mailbox selection.
+            $r->session()->invalidate();
+            Auth::login($createdUser);
+            $r->session()->regenerate();
+            $r->session()->put('credential_version', (int) $createdUser->credential_version);
+
+            return redirect('/two-factor')->with('status', $invite->reactivation_user_id ? 'Senha definida. Configure seu novo autenticador para continuar.' : 'Conta criada. Configure seu autenticador para continuar.');
+        }
+
+        return redirect('/login')->with('status', $invite->mailbox_id
+            ? 'Convite aceito. Sua caixa está liberada. Entre com sua conta e confirme o autenticador.'
+            : 'Convite aceito. Entre com sua conta para continuar. O acesso às caixas depende de concessão do administrador.');
     }
 
     private function unavailableInvite(Request $r, string $state, int $status = 410)

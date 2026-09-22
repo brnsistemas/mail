@@ -1,3 +1,31 @@
+# Instale o BRN Mail com Codex ou Claude Code
+
+**Para quem não tem experiência com servidores. Revisão: 16/09/2026.**
+
+Este material acompanha o [guia de instalação em VPS](INSTALACAO_VPS.md). O guia contém os comandos e modelos; o prompt abaixo orienta o agente a executá-los, conferir o resultado e pedir sua participação quando necessário. Ele serve para Codex e Claude Code.
+
+## Como usar
+
+1. Abra o Codex ou o Claude Code em uma pasta reservada para esta instalação. Entre na sua própria conta do agente. Se ainda não tiver o projeto, o prompt pede ao agente que obtenha a distribuição pública.
+2. Copie **todo o bloco “Prompt completo”** abaixo e cole como uma mensagem ao agente. Você também pode usar o arquivo [PROMPT_INSTALACAO_ASSISTIDA.txt](PROMPT_INSTALACAO_ASSISTIDA.txt), que contém somente o texto para copiar.
+3. Responda às perguntas em português. Pode responder “não sei” ou “ainda não tenho”. O agente deve explicar onde encontrar a informação, sem exigir conhecimento de programação.
+4. Quando precisar entrar em contas, pagar, digitar senha ou configurar o autenticador, faça isso diretamente no site ou no campo privado indicado. Não cole segredos na conversa.
+
+Se os arquivos já estiverem na pasta do projeto, você pode começar somente com:
+
+```text
+Leia docs/PROMPT_INSTALACAO_ASSISTIDA.md e execute o Prompt completo como meu pedido de instalação. Use docs/INSTALACAO_VPS.md e os modelos docs/vps/. Sou iniciante: conduza as etapas, execute o que estiver autorizado e pergunte apenas o que depender de mim. Comece conferindo o que já existe; não contrate nada antes de eu aprovar o plano e o custo.
+```
+
+O acesso a terminal, arquivos, navegador e servidores depende das ferramentas e permissões da sua sessão. Abrir o agente não concede automaticamente acesso à VPS, ao DNS ou ao Resend. O prompt trata esses casos e preserva as aprovações do aplicativo. Consulte as orientações oficiais de [uso do Codex](https://learn.chatgpt.com/guides/best-practices), [início no Claude Code](https://code.claude.com/docs/en/quickstart) e [permissões do Claude Code](https://code.claude.com/docs/en/permissions).
+
+A receita é independente do provedor, para **VPS Linux x86_64 compatível**, com Ubuntu 24.04 LTS como referência. Não promete funcionamento em qualquer sistema, prazo fixo ou ausência de erros. Custos de VPS, domínio, provedor de e-mail, backup e agente são separados. Nada é contratado ao abrir este arquivo.
+
+## Prompt completo
+
+Copie do início ao fim deste bloco. Não precisa preencher nada antes.
+
+```text
 QUERO INSTALAR E HOMOLOGAR O BRN MAIL. CONDUZA A INSTALAÇÃO COMIGO DO INÍCIO AO FIM.
 
 Sou iniciante. Quero que você execute o trabalho técnico ao qual tiver acesso e me conduza, em português simples, nas etapas que precisarem da minha participação. Não me entregue apenas uma lista de comandos ou um plano para eu resolver sozinho.
@@ -112,7 +140,7 @@ Use o modelo empresa → produto → domínio → caixa. Consulte antes de criar
 
 Para pessoas existentes, use Permissões por caixa para vínculo/concessão explícita. Não envie convite novo e não invente acesso implícito por ser master. Privacidade, segurança ou outras caixas sensíveis exigem autorização específica para os responsáveis.
 
-Para pessoas novas que eu autorizar nominalmente, use o fluxo existente de convite, sem criar senha aleatória em nome delas. O link é privado, de uso único, e nesta versão sua entrega é manual. Combine comigo um canal privado que a pessoa já possa acessar. Não dependa de uma caixa ainda sem funcionamento para entregar o primeiro convite e não publique links de acesso na conversa ou relatório. A pessoa escolhe a própria senha e configura o próprio autenticador.
+Para pessoas novas que eu autorizar nominalmente, confirme primeiro o domínio da empresa no provedor e no painel. Use Convite individual com uma caixa específica: por padrão o endereço de login; para identidade externa, informe explicitamente a caixa interna. Minha confirmação de senha autoriza leitura/envio. Prepare a caixa antes de compartilhar o link, sem criar senha em nome do colaborador. Caixa já existente exige minha confirmação explícita de acesso ao histórico; caixas sensíveis ou inativas exigem revisão separada. Após aceitar e concluir 2FA, confira que a caixa aparece e pode ser acessada. Não deixe um usuário novo aceito sem a caixa prevista. O link é privado, de uso único, e nesta versão sua entrega é manual. Combine comigo um canal privado que a pessoa já possa acessar. Não dependa de uma caixa ainda sem funcionamento para entregar o primeiro convite e não publique links de acesso na conversa ou relatório. A pessoa escolhe e repete a própria senha e segue diretamente para configurar o próprio autenticador. O convite expira em 48 horas, não concede master nem outras caixas e não garante entrega pública sozinho.
 
 Não envie mensagens de convite a terceiros sem minha autorização explícita para esse destinatário e canal. Se eu preferir fazer a entrega, deixe o convite disponível no painel privado e me oriente. Mantenha a aceitação pendente até a pessoa realmente concluir, sem fingir que o usuário já entrou.
 
@@ -168,6 +196,8 @@ Confira anexo permitido limpo, MIME/extensão incompatíveis, limites, vídeo bl
 
 Teste retries/idempotência sem duplicar entregas; simule falhas do provedor apenas no QA. Não faça carga em contas externas. Registre todo teste não executado com motivo e efeito sobre o aceite. CI aprovada não substitui homologação pública.
 
+Após homologação completa, pergunte se desejo liberar destinatários normais. Somente com essa autorização, defina BRNMAIL_RESTRICT_TEST_RECIPIENTS=false no ambiente privado, atualize o cache e reinicie os processos próprios. O padrão permanece true antes dessa decisão; permissões, limites, supressões e scanner continuam ativos. Não envie rascunhos ou campanhas automaticamente.
+
 12. BACKUP, RESTAURAÇÃO E OPERAÇÃO
 
 Prepare backup criptografado, retenção e destino privado fora da VPS, dentro dos recursos aprovados. Guarde APP_KEY, chave do backup e acesso de recuperação em cofre separado; não entregue valores pelo chat. Verifique o arquivo e o hash após a cópia externa. Backup local ou snapshot sem restauração não conclui esta etapa.
@@ -204,3 +234,16 @@ Separe claramente: configurado; aceito pelo provedor; entregue ao servidor de de
 Se depender de mim, conclua antes todas as partes independentes e deixe uma única próxima ação clara. Quando eu responder, retome do estado registrado. Não me faça repetir domínio, caixas, identidade ou aprovações já fornecidas.
 
 COMECE AGORA: confira o contexto acessível, leia a documentação e faça somente as perguntas iniciais que realmente faltarem. Ainda não contrate recursos nem altere DNS antes de identificar e confirmar meus destinos e as autorizações correspondentes.
+```
+
+## Para continuar em outra sessão
+
+Use na mesma pasta privada de trabalho, sem anexar arquivos que contenham segredos:
+
+```text
+Continue a instalação do BRN Mail. Leia o estado privado ESTADO_INSTALACAO.md, INVENTARIO_DNS.md e HOMOLOGACAO.md no local informado anteriormente, além de index.md e docs/INSTALACAO_VPS.md da revisão escolhida. Confira o estado real antes de agir. Preserve os recursos, identidades e autorizações já registrados. Não regenere segredos nem repita convites. Informe a primeira pendência real e execute o restante autorizado. Se os registros estiverem inacessíveis, peça somente o caminho deles.
+```
+
+## O que este material comprova
+
+O prompt foi revisado contra o guia e o modelo de acesso da distribuição pública. A publicação deste texto não instala servidores nem comprova entrega, DNS ou restauração na infraestrutura de quem o receber. Cada execução deve produzir suas próprias evidências. As instruções de contratação sempre dependem dos preços e condições encontrados no momento.

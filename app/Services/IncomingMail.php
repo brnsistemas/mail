@@ -112,6 +112,7 @@ final class IncomingMail
                 $m = Message::create(['mailbox_id' => $box->id, 'thread_id' => $parent?->thread_id ?? (string) Str::uuid(), 'direction' => 'inbound', 'status' => 'received', 'folder' => 'inbox',
                     'subject' => mb_substr((string) ($data['subject'] ?? '(sem assunto)'), 0, 500), 'sender' => mb_substr((string) ($data['from'] ?? ''), 0, 500),
                     'recipients' => ['to' => [$box->address], 'cc' => [], 'bcc' => []], 'body_text' => $this->content->text($data['text'] ?? null, $data['html'] ?? null),
+                    'body_html' => app(MailHtml::class)->sanitize($data['html'] ?? null),
                     'reply_to' => mb_substr((string) ($data['reply_to'][0] ?? ''), 0, 254), 'rfc_message_id' => mb_substr((string) ($data['message_id'] ?? ''), 0, 1000),
                     'in_reply_to' => $reply, 'provider_id' => $event->email_id]);
                 $this->content->index($m);

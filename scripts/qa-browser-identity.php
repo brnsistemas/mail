@@ -3,9 +3,11 @@
 use App\Models\Mailbox;
 use App\Models\MailboxGrant;
 use App\Models\Membership;
+use App\Models\Message;
 use App\Models\User;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 // Called by the browser QA harness, never by HTTP. Synthetic identity only.
 require dirname(__DIR__).'/vendor/autoload.php';
@@ -36,4 +38,9 @@ if ($secondary) {
     Membership::updateOrCreate(['user_id' => $user->id, 'organization_id' => $secondary->domain->product->organization_id], ['active' => true, 'role' => 'member']);
     MailboxGrant::updateOrCreate(['user_id' => $user->id, 'mailbox_id' => $secondary->id], ['can_read' => true, 'can_send' => true]);
 }
-echo json_encode(['email' => $user->email, 'password' => $password, 'box' => $box->id, 'secondary_box' => $secondary?->id]);
+$htmlMessage = Message::firstOrCreate(['provider_id' => 'browser-html-synthetic'], [
+    'mailbox_id' => $box->id, 'thread_id' => (string) Str::uuid(), 'direction' => 'inbound', 'folder' => 'inbox', 'status' => 'received',
+    'subject' => 'QA HTML e Spam', 'sender' => 'sender@example.test', 'recipients' => ['to' => [$box->address]], 'body_text' => 'Alternativa sintética em texto',
+    'body_html' => '<h1>Convite de demonstração</h1><table style="width:100%;background-color:#f4f5f7"><tr><td style="padding:24px"><p>Mensagem sintética para conferir o leitor.</p><a href="http://127.0.0.1:8876/login?qa=html-link" style="background-color:#175cd3;color:#ffffff;padding:12px 20px;border-radius:6px;display:inline-block;text-decoration:none">Aceitar convite</a><img src="http://127.0.0.1:8876/qa-forbidden-tracker"><script>parent.document.body.dataset.compromised="yes"</script><form action="/qa-forbidden-form"><input name="password"></form></td></tr></table>',
+]);
+echo json_encode(['html_message' => $htmlMessage->id, 'email' => $user->email, 'password' => $password, 'box' => $box->id, 'secondary_box' => $secondary?->id]);

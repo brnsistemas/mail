@@ -140,7 +140,7 @@ Use o modelo empresa → produto → domínio → caixa. Consulte antes de criar
 
 Para pessoas existentes, use Permissões por caixa para vínculo/concessão explícita. Não envie convite novo e não invente acesso implícito por ser master. Privacidade, segurança ou outras caixas sensíveis exigem autorização específica para os responsáveis.
 
-Para pessoas novas que eu autorizar nominalmente, use o fluxo existente de convite, sem criar senha aleatória em nome delas. O link é privado, de uso único, e nesta versão sua entrega é manual. Combine comigo um canal privado que a pessoa já possa acessar. Não dependa de uma caixa ainda sem funcionamento para entregar o primeiro convite e não publique links de acesso na conversa ou relatório. A pessoa escolhe a própria senha e configura o próprio autenticador.
+Para pessoas novas que eu autorizar nominalmente, confirme primeiro o domínio da empresa no provedor e no painel. Use Convite individual com uma caixa específica: por padrão o endereço de login; para identidade externa, informe explicitamente a caixa interna. Minha confirmação de senha autoriza leitura/envio. Prepare a caixa antes de compartilhar o link, sem criar senha em nome do colaborador. Caixa já existente exige minha confirmação explícita de acesso ao histórico; caixas sensíveis ou inativas exigem revisão separada. Após aceitar e concluir 2FA, confira que a caixa aparece e pode ser acessada. Não deixe um usuário novo aceito sem a caixa prevista. O link é privado, de uso único, e nesta versão sua entrega é manual. Combine comigo um canal privado que a pessoa já possa acessar. Não dependa de uma caixa ainda sem funcionamento para entregar o primeiro convite e não publique links de acesso na conversa ou relatório. A pessoa escolhe e repete a própria senha e segue diretamente para configurar o próprio autenticador. O convite expira em 48 horas, não concede master nem outras caixas e não garante entrega pública sozinho.
 
 Não envie mensagens de convite a terceiros sem minha autorização explícita para esse destinatário e canal. Se eu preferir fazer a entrega, deixe o convite disponível no painel privado e me oriente. Mantenha a aceitação pendente até a pessoa realmente concluir, sem fingir que o usuário já entrou.
 
@@ -195,6 +195,8 @@ No ambiente isolado apropriado, confira permissões entre empresas/caixas, usuá
 Confira anexo permitido limpo, MIME/extensão incompatíveis, limites, vídeo bloqueado, indisponibilidade do scanner, recuperação e HTML ativo sem execução. Respeite até 5 arquivos, 10 MiB individual e 20 MiB total nesta revisão. EICAR somente no scanner local/controlado, nunca em e-mails externos. Não libere anexo sem varredura e não prometa proteção absoluta.
 
 Teste retries/idempotência sem duplicar entregas; simule falhas do provedor apenas no QA. Não faça carga em contas externas. Registre todo teste não executado com motivo e efeito sobre o aceite. CI aprovada não substitui homologação pública.
+
+Após homologação completa, pergunte se desejo liberar destinatários normais. Somente com essa autorização, defina BRNMAIL_RESTRICT_TEST_RECIPIENTS=false no ambiente privado, atualize o cache e reinicie os processos próprios. O padrão permanece true antes dessa decisão; permissões, limites, supressões e scanner continuam ativos. Não envie rascunhos ou campanhas automaticamente.
 
 12. BACKUP, RESTAURAÇÃO E OPERAÇÃO
 

@@ -16,8 +16,8 @@
 @endsection
 @section('content')
 @php
-$folders=['inbox'=>'Entrada','drafts'=>'Rascunhos','sent'=>'Enviados','archive'=>'Arquivados','trash'=>'Lixeira'];
-$folderIcons=['inbox'=>'inbox','drafts'=>'draft','sent'=>'send','archive'=>'archive','trash'=>'trash'];
+$folders=['inbox'=>'Entrada','drafts'=>'Rascunhos','sent'=>'Enviados','archive'=>'Arquivados','spam'=>'Spam','trash'=>'Lixeira'];
+$folderIcons=['inbox'=>'inbox','drafts'=>'draft','sent'=>'send','archive'=>'archive','spam'=>'spam','trash'=>'trash'];
 $labels=['received'=>'Recebido','draft'=>'Rascunho','queued'=>'Na fila','simulated'=>'Processado localmente · não enviado','accepted'=>'Aceito pelo provedor','delivered'=>'Entregue','bounced'=>'Devolvido','complained'=>'Reclamação','failed'=>'Falha','uncertain'=>'Resultado incerto','delayed'=>'Entrega atrasada'];
 $rowLabels=array_merge($labels,['simulated'=>'Simulado','accepted'=>'Aceito','uncertain'=>'Verificar envio']);
 $organizations=$boxes->groupBy(fn($b)=>$b->domain->product->organization_id);
@@ -62,6 +62,7 @@ $organizations=$boxes->groupBy(fn($b)=>$b->domain->product->organization_id);
     <main id="main" class="message-list">
         <div class="list-head"><div><h1>{{ $folders[$folder] }}</h1><p>{{ $messages->total() }} {{ $messages->total()===1?'mensagem':'mensagens' }}{{ $search ? ' encontradas' : '' }}</p></div><a href="{{ request()->fullUrlWithQuery(['box'=>$box?->id,'folder'=>$folder]) }}" class="icon-button refresh" aria-label="Atualizar mensagens" title="Atualizar"><x-icon name="refresh"/></a></div>
         @if($search)<form class="search-result" action="/mail/search" method="post">@csrf<input type="hidden" name="box" value="{{ $box?->id }}"><input type="hidden" name="folder" value="{{ $folder }}"><input type="hidden" name="q" value=""><span>Resultados para “{{ $search }}”</span><button class="icon-button" aria-label="Limpar pesquisa" title="Limpar pesquisa"><x-icon name="close"/></button></form>@endif
+        @if($folder==='spam')<p class="spam-note">Mensagens marcadas manualmente como spam. Use “Não é spam” para devolver à Entrada.</p>@endif
         <div class="rows">@forelse($messages as $m)
             @php
                 $senderName=preg_replace('/\s*<[^<>]+>$/u','',$m->sender) ?: $m->sender;
@@ -85,10 +86,13 @@ $organizations=$boxes->groupBy(fn($b)=>$b->domain->product->organization_id);
             <span class="status {{ $selected->status }}">{{ $labels[$selected->status] ?? $selected->status }}</span>
             @if($selected->direction==='inbound' && $canSend)
             <form action="/messages/{{ $selected->id }}/move" method="post">@csrf<input type="hidden" name="folder" value="{{ $folder==='archive'?'inbox':'archive' }}"><button class="icon-button" aria-label="{{ $folder==='archive'?'Restaurar':'Arquivar' }}" title="{{ $folder==='archive'?'Restaurar':'Arquivar' }}"><x-icon name="archive"/></button></form>
+            <form action="/messages/{{ $selected->id }}/move" method="post">@csrf<input type="hidden" name="folder" value="{{ $selected->folder==='spam'?'inbox':'spam' }}"><button class="icon-button" aria-label="{{ $selected->folder==='spam'?'Não é spam':'Marcar como spam' }}" title="{{ $selected->folder==='spam'?'Não é spam':'Marcar como spam' }}"><x-icon name="spam"/></button></form>
             <form action="/messages/{{ $selected->id }}/move" method="post">@csrf<input type="hidden" name="folder" value="{{ $folder==='trash'?'inbox':'trash' }}"><button class="icon-button" aria-label="{{ $folder==='trash'?'Restaurar da lixeira':'Mover para lixeira' }}" title="{{ $folder==='trash'?'Restaurar da lixeira':'Mover para lixeira' }}"><x-icon name="trash"/></button></form>
             @endif
         </div>
         <div class="reading-content">
+            @if($selected->status==='queued' && $selected->author_id===auth()->id())<p class="notice" role="status" data-send-status-url="/drafts/{{ $selected->id }}/status">Mensagem na fila. Acompanhando o resultado do envio…</p>@endif
+            @if(in_array($selected->status,['failed','uncertain']))<p class="notice error" role="alert">{{ $selected->status==='failed' ? 'O envio falhou. A mensagem foi preservada; peça ao administrador para conferir o motivo antes de tentar novamente.' : 'O provedor ainda não confirmou o resultado. Não repita o envio para evitar duplicação.' }}</p>@endif
             @if($selected->status==='draft')
                 <div class="eyebrow">NOVA MENSAGEM</div><h1>Novo e-mail</h1>
                 <p class="from-line">De <strong>{{ $box->address }}</strong><span>{{ $box->domain->product->organization->name }} · {{ $box->name }}</span></p>
@@ -97,12 +101,19 @@ $organizations=$boxes->groupBy(fn($b)=>$b->domain->product->organization_id);
             @else
                 <h1>{{ $selected->subject }}</h1>
                 <div class="sender-block"><span class="avatar">{{ mb_strtoupper(mb_substr($selected->sender,0,1)) }}</span><div><strong>{{ $selected->sender }}</strong><p>Para {{ implode(', ',$selected->recipients['to'] ?? []) }}</p><time>{{ $selected->created_at->format('d/m/Y · H:i') }} UTC</time></div></div>
-                <div class="mail-body">{{ $selected->body_text }}</div>
+                @if($selected->direction==='inbound' && $selected->body_html)
+                    <p class="muted html-notice">Conteúdo formatado. Imagens externas e conteúdo ativo ficam bloqueados.</p>
+                    <iframe class="mail-html" title="Conteúdo formatado do e-mail" src="/messages/{{ $selected->id }}/html" sandbox="{{ \App\Services\MailHtml::SANDBOX }}" referrerpolicy="no-referrer"></iframe>
+                    <details class="plain-alternative"><summary>Ver versão em texto</summary><div class="mail-body">{{ $selected->body_text }}</div></details>
+                @else
+                    <div class="mail-body">{{ $selected->body_text }}</div>
+                @endif
             @endif
             @if($selected->attachments->count())<section class="attachment-list"><h2>Anexos</h2>@foreach($selected->attachments as $a)<div class="attachment"><span><strong>{{ $a->filename }}</strong><small>{{ number_format($a->size/1024,1,',','.') }} KB · {{ ['clean'=>'Verificado','quarantine'=>'Em quarentena','blocked'=>'Bloqueado','unavailable'=>'Indisponível'][$a->status] ?? $a->status }}</small></span>@if($a->status==='clean')<a href="/attachments/{{ $a->id }}">Baixar</a>@endif @if($selected->status==='draft')<form method="post" action="/attachments/{{ $a->id }}/remove">@csrf<button aria-label="Remover {{ $a->filename }}">Remover</button></form>@endif</div>@endforeach</section>@endif
             @if($selected->status==='draft')
-                <form action="/drafts/{{ $selected->id }}/attachments" method="post" enctype="multipart/form-data" class="upload-form">@csrf<label>Anexar imagem ou documento<input type="file" name="attachment" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.xlsx,.pptx,.txt,.csv" required></label><button><x-icon name="paperclip"/> Anexar e verificar</button><p class="muted">Até 5 arquivos · 10 MiB cada · 20 MiB por mensagem. Vídeos não permitidos. Salve o texto antes de anexar.</p></form>
-                <form action="/drafts/{{ $selected->id }}/send" method="post" id="send-form">@csrf<input type="hidden" name="version" value="{{ $selected->version }}"><button class="primary"><x-icon name="send"/>{{ config('brnmail.transport')==='local'?'Processar envio local':'Enviar para destinatários autorizados' }}</button><p class="muted">O envio usa a última versão salva. {{ config('brnmail.transport')==='local'?'Nenhuma mensagem sairá deste ambiente.':'' }}</p></form>
+                <form action="/drafts/{{ $selected->id }}/attachments" method="post" enctype="multipart/form-data" class="upload-form">@csrf<label>Anexar imagem ou documento<input type="file" name="attachment" accept=".jpg,.jpeg,.png,.webp,.pdf,.docx,.xlsx,.pptx,.txt,.csv" required></label><button><x-icon name="paperclip"/> Anexar e verificar</button><p class="muted">Até 5 arquivos · 10 MiB cada · 20 MiB por mensagem. Vídeos não permitidos. O texto é salvo automaticamente antes de anexar.</p></form>
+                <form action="/drafts/{{ $selected->id }}/send" method="post" id="send-form">@csrf<input type="hidden" name="version" value="{{ $selected->version }}"><button class="primary"><x-icon name="send"/>{{ config('brnmail.transport')==='local'?'Processar envio local':'Enviar' }}</button><p id="send-state" class="muted" role="status" aria-live="polite">O texto e o arquivo selecionado serão salvos antes do envio. {{ config('brnmail.transport')==='local'?'Nenhuma mensagem sairá deste ambiente.':'' }}</p></form>
+                <div id="upload-progress" class="muted" role="status" aria-live="polite"></div>
             @elseif($selected->direction==='inbound')
                 @if($canSend)<form action="/drafts" method="post" class="reply-form">@csrf<input type="hidden" name="mailbox_id" value="{{ $box->id }}"><input type="hidden" name="reply_to" value="{{ $selected->id }}"><button class="secondary"><x-icon name="reply"/> Responder por {{ $box->name }}</button></form>@endif
                 <details class="message-controls"><summary>Leitura e responsável <x-icon name="chevron"/></summary>

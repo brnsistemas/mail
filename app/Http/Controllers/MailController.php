@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\Access;
 use App\Services\Attachments;
+use App\Services\MailHtml;
 use App\Services\MessageContent;
 use App\Services\OutgoingMail;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class MailController extends Controller
         $box = $r->filled('box') ? $boxes->firstWhere('id', $r->integer('box')) : ($boxes->firstWhere('id', (int) $r->session()->get('mail.active_box')) ?? $boxes->first());
         abort_if($r->filled('box') && ! $box, 404);
         $folder = (string) $r->input('folder', 'inbox');
-        abort_unless(in_array($folder, ['inbox', 'drafts', 'sent', 'archive', 'trash']), 422);
+        abort_unless(in_array($folder, ['inbox', 'drafts', 'sent', 'archive', 'spam', 'trash']), 422);
         $q = Message::where('mailbox_id', $box?->id ?? 0)->where('folder', $folder);
         // Drafts remain private to their author even in a shared mailbox.
         $q->where(fn ($q) => $q->where('status', '!=', 'draft')->orWhere('author_id', $r->user()->id));
@@ -64,6 +65,17 @@ class MailController extends Controller
         }
 
         return view('mail.index', compact('boxes', 'box', 'messages', 'selected', 'folder', 'counts', 'search', 'canSend', 'operators'));
+    }
+
+    public function html(Request $r, string $id, MailHtml $html)
+    {
+        $message = $this->message($r, $id);
+        abort_unless($message->direction === 'inbound' && $message->status !== 'draft', 404);
+        $safe = $html->sanitize($message->body_html);
+        abort_unless($safe, 404);
+        $this->access->audit($r->user(), 'message.html_viewed', $message->mailbox_id, $message->id);
+
+        return response($html->document($safe))->header('Content-Type', 'text/html; charset=UTF-8');
     }
 
     public function search(Request $r)
@@ -136,15 +148,26 @@ class MailController extends Controller
         $r->validate(['version' => 'required|integer']);
         $m = $this->message($r, $id, 'send');
         $service->queue($m, $r->user(), $r->integer('version'));
+        if ($r->expectsJson()) {
+            return response()->json(['queued' => true, 'redirect' => '/mail?box='.$m->mailbox_id.'&folder=drafts&message='.$m->id]);
+        }
 
         return redirect('/mail?box='.$m->mailbox_id.'&folder=drafts&message='.$m->id)->with('status', 'Na fila. Acompanhe o resultado; não é confirmação de entrega.');
+    }
+
+    public function draftStatus(Request $r, string $id)
+    {
+        $m = $this->message($r, $id, 'send');
+        abort_unless($m->direction === 'outbound' && $m->author_id === $r->user()->id, 404);
+
+        return response()->json(['version' => $m->version, 'status' => $m->status, 'redirect' => '/mail?box='.$m->mailbox_id.'&folder='.$m->folder.'&message='.$m->id, 'attachments' => $m->attachments()->get(['id', 'filename', 'status'])]);
     }
 
     public function move(Request $r, string $id)
     {
         $m = $this->message($r, $id);
         abort_unless($this->access->allowed($r->user(), $m->mailbox_id, 'send'), 403);
-        $d = $r->validate(['folder' => 'required|in:inbox,archive,trash']);
+        $d = $r->validate(['folder' => 'required|in:inbox,archive,spam,trash']);
         abort_if(in_array($m->status, ['draft', 'queued']) || $m->direction !== 'inbound', 409);
         $m->update(['folder' => $d['folder']]);
         $this->access->audit($r->user(), 'message.moved', $m->mailbox_id, $m->id);
@@ -191,6 +214,9 @@ class MailController extends Controller
         } catch (\Throwable) { /* DB quarantine is recovered by brnmail:scan. */
         }
         $a->refresh();
+        if ($r->expectsJson()) {
+            return response()->json(['uploaded' => true, 'attachment' => ['id' => $a->id, 'filename' => $a->filename, 'status' => $a->status]], 201);
+        }
 
         return back()->with('status', $a->status === 'clean' ? 'Anexo verificado.' : 'Anexo em quarentena. Envio e download bloqueados até a verificação.');
     }

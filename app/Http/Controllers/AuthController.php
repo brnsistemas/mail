@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\User;
 use App\Services\Access;
 use App\Services\Mfa;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
@@ -10,6 +11,7 @@ use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Writer;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use PragmaRX\Google2FA\Google2FA;
@@ -30,18 +32,23 @@ class AuthController extends Controller
         RateLimiter::clear($key);
         $r->session()->regenerate();
         $r->session()->forget('mfa_version');
+        $r->session()->put('credential_version', (int) $r->user()->credential_version);
 
         return redirect('/two-factor');
     }
 
     public function factor(Request $r)
     {
-        $u = $r->user();
-        abort_unless($u->active, 403);
-        if (! $u->totp_secret) {
-            $u->totp_secret = (new Google2FA)->generateSecretKey(32);
-            $u->save();
-        }
+        $u = DB::transaction(function () use ($r) {
+            $user = User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
+            abort_unless($user->active && (int) $r->session()->get('credential_version', 0) === (int) $user->credential_version, 403);
+            if (! $user->totp_secret) {
+                $user->totp_secret = (new Google2FA)->generateSecretKey(32);
+                $user->save();
+            }
+
+            return $user;
+        });
 
         $setup = ! $u->totp_confirmed_at;
         $qr = null;
@@ -59,22 +66,26 @@ class AuthController extends Controller
     public function verify(Request $r, Mfa $mfa, Access $access)
     {
         $r->validate(['code' => 'required|string|max:100']);
-        $u = $r->user();
-        if (! $mfa->verify($u, (string) $r->string('code'))) {
-            return back()->withErrors(['code' => 'Código inválido, expirado ou já utilizado.']);
-        }
-        $u->refresh();
-        $codes = null;
-        if (! $u->totp_confirmed_at) {
-            $u->totp_confirmed_at = now();
-            $u->save();
-            $codes = $mfa->recovery($u);
-        }
-        $r->session()->regenerate();
-        $r->session()->put('mfa_version', $u->security_version);
-        $access->audit($u, 'mfa.verified');
 
-        return $codes ? view('auth.recovery', ['codes' => $codes]) : redirect('/mail');
+        return DB::transaction(function () use ($r, $mfa, $access) {
+            $u = User::whereKey($r->user()->id)->lockForUpdate()->firstOrFail();
+            abort_unless($u->active && (int) $r->session()->get('credential_version', 0) === (int) $u->credential_version, 403);
+            if (! $mfa->verify($u, (string) $r->string('code'))) {
+                return back()->withErrors(['code' => 'Código inválido, expirado ou já utilizado.']);
+            }
+            $u->refresh();
+            $codes = null;
+            if (! $u->totp_confirmed_at) {
+                $u->totp_confirmed_at = now();
+                $u->save();
+                $codes = $mfa->recovery($u);
+            }
+            $r->session()->regenerate();
+            $r->session()->put('mfa_version', $u->security_version);
+            $access->audit($u, 'mfa.verified');
+
+            return $codes ? view('auth.recovery', ['codes' => $codes]) : redirect('/mail');
+        });
     }
 
     public function logout(Request $r)

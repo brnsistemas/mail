@@ -19,8 +19,8 @@ final class MessageContent
 
             return $text;
         }
-        // No remote images, links, active markup or browser HTML rendering.
-        $safe = (new HtmlSanitizer((new HtmlSanitizerConfig)->allowSafeElements()->dropElement('script')->dropElement('style')->dropElement('img')))->sanitize($html ?? '');
+        // Plain alternative/search index; formatted content has a separate isolated reader.
+        $safe = (new HtmlSanitizer((new HtmlSanitizerConfig)->withMaxInputLength(1024 * 1024)->allowSafeElements()->dropElement('script')->dropElement('style')->dropElement('img')))->sanitize($html ?? '');
         $safe = preg_replace('/<\/(p|div|li|h[1-6])>|<br\s*\/?>/i', "\n", $safe);
 
         $plain = html_entity_decode(strip_tags($safe), ENT_QUOTES | ENT_HTML5, 'UTF-8');
