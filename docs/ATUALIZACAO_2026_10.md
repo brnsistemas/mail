@@ -40,3 +40,11 @@ Esta edição pública continua sendo o webmail com Resend descrito no README. N
 ## Dependências verificadas
 
 A primeira CI desta atualização detectou avisos já presentes no lock anterior. Foram atualizados somente `league/commonmark` (2.10.4) e `symfony/http-foundation` (7.4.21), com dependências restantes preservadas. A auditoria Composer não apontou avisos conhecidos após a atualização; isso não equivale a garantir ausência de vulnerabilidades. A suíte pública foi repetida após a mudança.
+
+## Interface responsiva — 22/10/2026
+
+A interface compartilhada ganhou campos e seletores proporcionais, navegação consistente na área de segurança, melhores espaçamentos e estados legíveis nos temas claro e escuro. Em celulares, o inventário de caixas e usuários vira cartões com ações visíveis. Formulários, tabelas, confirmações e composição de mensagens usam o mesmo padrão visual.
+
+Esta atualização não muda permissões, contas, senhas ou dados. Não exige migration adicional. A distribuição pública continua sendo webmail com Resend; não inclui serviços IMAP/SMTP nem MCP da instalação privada. Publique também `public/interface.css` e `public/interface.js` junto com os templates e limpe/recompile o cache das views pelo procedimento normal de atualização.
+
+Validação local: 268 testes PHP, 1.636 asserções, Pint e JavaScript aprovados; o teste opcional com antivírus real não foi repetido nesta alteração visual. A CI do commit registra o resultado do navegador. Reversão: restaure a versão anterior de código e assets sem restaurar o banco.

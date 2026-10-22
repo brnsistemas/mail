@@ -4,14 +4,12 @@
 html{font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 body{margin:0;background:var(--bg);color:var(--text)}
 a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}
-button,input,select,textarea{font:inherit}
-button,.button{border:1px solid var(--line);border-radius:9px;padding:9px 15px;background:var(--surface);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;font-weight:600}
-button:hover,.button:hover{background:var(--hover);text-decoration:none}button:disabled{cursor:not-allowed;opacity:.55}
-input,select,textarea{width:100%;padding:10px 12px;color:var(--text);border:1px solid var(--line);background:var(--surface);border-radius:8px;min-height:44px}
+button,input:not([type=checkbox]):not([type=radio]),select,textarea{width:100%;padding:10px 12px;color:var(--text);border:1px solid var(--line);background:var(--surface);border-radius:8px;min-height:44px}
 textarea{resize:vertical}input[readonly]{font-family:monospace}
 label{display:block;font-size:.875rem;font-weight:600;margin:12px 0}
-label input,label select,label textarea{display:block;margin-top:6px}
-label.check{display:flex;align-items:center;gap:10px}.check input{width:18px;min-height:18px;margin:0}
+label input:not([type=checkbox]):not([type=radio]),label select,label textarea{display:block;margin-top:6px}
+input[type=checkbox],input[type=radio]{width:18px;height:18px;min-height:18px;padding:0;margin:0;flex:0 0 18px;accent-color:var(--accent);vertical-align:middle;cursor:pointer}
+label.check,label:has(>input[type=checkbox]),label:has(>input[type=radio]){display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer}
 :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 h1,h2,h3,p{margin-top:0}h1{font-size:1.75rem;line-height:1.25;letter-spacing:-.035em;margin-bottom:16px}h2{font-size:1.125rem;line-height:1.4;margin-bottom:12px}
 p{color:var(--muted)}small,.muted{font-size:.875rem;color:var(--muted)}code{overflow-wrap:anywhere}

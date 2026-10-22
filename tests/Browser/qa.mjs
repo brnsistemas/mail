@@ -17,7 +17,7 @@ function totp(secret){
  const h=createHmac('sha1',key).update(step).digest();const o=h[19]&15;return ((h.readUInt32BE(o)&0x7fffffff)%1000000).toString().padStart(6,'0');
 }
 const browser=await chromium.launch({headless:true,channel:process.env.BRNMAIL_BROWSER_CHANNEL || 'chrome'});
-const context=await browser.newContext({viewport:{width:1440,height:1050}});
+const context=await browser.newContext({reducedMotion:'reduce',viewport:{width:1440,height:1050}});
 await context.grantPermissions(['clipboard-read','clipboard-write'],{origin:base});
 const errors=[]; const external=[];
 context.on('page',p=>p.on('pageerror',e=>errors.push(e.name)));
