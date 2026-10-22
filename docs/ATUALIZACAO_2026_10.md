@@ -36,3 +36,7 @@ Mantenha o backup e a release anterior. Não use `migrate:fresh`, não apague vo
 A versão pública passou em 268 testes de backend, com 1.636 asserções, em MySQL novo e rede isolada. O teste que exige ClamAV real não foi executado nesta rodada. A interface compartilhada foi validada em telas de 390/1440 pixels, temas claro/escuro, com ações em dados fictícios. Envio e recebimento externos não foram repetidos: esta atualização não altera DNS ou transporte.
 
 Esta edição pública continua sendo o webmail com Resend descrito no README. Não inclui o gateway privado de IMAP/SMTP nem a integração MCP de uma instalação particular. Nenhum usuário, domínio real, credencial, assinatura, backup, log ou histórico Git de instalação privada acompanha a atualização.
+
+## Dependências verificadas
+
+A primeira CI desta atualização detectou avisos já presentes no lock anterior. Foram atualizados somente `league/commonmark` (2.10.4) e `symfony/http-foundation` (7.4.21), com dependências restantes preservadas. A auditoria Composer não apontou avisos conhecidos após a atualização; isso não equivale a garantir ausência de vulnerabilidades. A suíte pública foi repetida após a mudança.
