@@ -1,0 +1,1 @@
+<section class="panel"><h2>Produtos</h2><form action="/admin/products" method="post">@csrf<label>Empresa<select name="organization_id">@foreach($organizations as $o)<option value="{{ $o->id }}">{{ $o->name }}</option>@endforeach</select></label><label>Nome do produto<input name="name" required maxlength="100"></label><button>Criar produto</button></form></section>

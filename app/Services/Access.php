@@ -14,7 +14,7 @@ final class Access
     {
         abort_unless(in_array($ability, ['read', 'send', 'manage']), 403);
 
-        return Mailbox::query()->where('active', true)->whereHas('domain.product', fn ($q) => $q->whereIn('organization_id', Membership::where('user_id', $user->id)->where('active', true)->select('organization_id')))
+        return Mailbox::query()->where('active', true)->whereNull('deleted_at')->whereHas('domain.product', fn ($q) => $q->whereIn('organization_id', Membership::where('user_id', $user->id)->where('active', true)->select('organization_id')))
             ->whereHas('grants', fn ($q) => $q->where('user_id', $user->id)->where('can_'.$ability, true)->where(fn ($q) => $q->where('view_sensitive', true)->orWhere('mailboxes.sensitive', false)))
             ->when(! $user->active, fn ($q) => $q->whereRaw('1=0'));
     }

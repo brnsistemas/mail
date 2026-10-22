@@ -7,7 +7,7 @@
     "qa:qr": "node tests/Browser/qr-decode.mjs",
     "qa:auth-ui": "node tests/Browser/auth-security-unit.mjs",
     "qa:invite": "node --test tests/Browser/invite-unit.mjs",
-    "lint": "node --check public/mail.js && node --check public/auth-security.js && node --check public/invite.js"
+    "lint": "node --check public/mail.js && node --check public/auth-security.js && node --check public/invite.js && node --check public/admin.js"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

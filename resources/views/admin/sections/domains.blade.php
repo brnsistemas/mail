@@ -1,0 +1,4 @@
+@include('admin.filters')
+<section class="panel"><h2>Domínios cadastrados</h2><div class="admin-records">@forelse($records as $item)<article><div><strong>{{ $item->domain }}</strong><small>{{ $item->product->organization->name }} · {{ $item->product->name }}</small></div><span class="status">{{ $item->status === 'verified' ? 'Envio verificado' : ($item->status === 'local' ? 'Somente local' : 'Pendente') }}</span></article>@empty<p>Nenhum domínio encontrado.</p>@endforelse</div><p class="muted">Envio verificado não comprova recebimento público. Confira o provedor e faça um teste real.</p>@include('admin.pagination', ['paginator' => $records, 'label' => 'Domínios'])</section>
+<details class="admin-create" id="new-domain"><summary>Cadastrar domínio</summary>@include('admin.forms.domain')</details>
+<details class="admin-create"><summary>Consultar domínio no Resend</summary>@include('admin.forms.domain-status')</details>

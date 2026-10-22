@@ -53,6 +53,7 @@ Verifique saúde e assinaturas do ClamAV. O scanner consome memória adicional; 
 ## Material para alunos
 
 - [Baixar o guia em PDF](https://github.com/brnsistemas/mail/releases/latest/download/BRN-Mail-Guia-de-Instalacao.pdf).
+- [Atualização do painel e Segurança (outubro)](docs/ATUALIZACAO_2026_10.md).
 - [O que mudou nesta edição](docs/ATUALIZACAO_2026_09.md).
 - [Tutorial completo](docs/INSTALACAO_VPS.md) e [prompt pronto em texto](docs/PROMPT_INSTALACAO_ASSISTIDA.txt).
 

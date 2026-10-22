@@ -1,0 +1,1 @@
+<section class="panel"><h2>Empresas</h2><form method="post" action="/admin/organizations">@csrf<label>Nome da empresa<input name="name" required maxlength="100"></label><label>Confirme sua senha<input type="password" name="password" required autocomplete="current-password"></label><button>Criar empresa isolada</button></form></section>

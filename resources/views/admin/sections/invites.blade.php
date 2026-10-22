@@ -1,0 +1,4 @@
+<p class="muted">Quem já tem uma conta deve ser vinculado em <a href="/admin/permissions">Permissões por caixa</a>, sem novo convite.</p>
+@include('admin.filters')
+<section class="panel"><h2>Histórico de convites</h2><div class="admin-records">@forelse($records as $item)<article><div><strong>{{ $item->email }}</strong><small>{{ $item->mailbox_address ?: 'Convite anterior ao cadastro de caixas' }}</small><small>{{ $organizations->firstWhere('id', $item->organization_id)?->name }}</small></div><span class="status">{{ $item->accepted_at ? 'Aceito' : ($item->expires_at->isPast() ? 'Expirado' : 'Pendente') }}</span></article>@empty<p>Nenhum convite encontrado.</p>@endforelse</div>@include('admin.pagination', ['paginator' => $records, 'label' => 'Convites'])</section>
+<details class="admin-create" id="new-invite"><summary>Convidar nova pessoa e preparar caixa</summary>@include('admin.forms.invite')</details>

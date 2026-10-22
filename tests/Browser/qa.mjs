@@ -43,7 +43,7 @@ try {
  assert(await page.evaluate(async()=>navigator.clipboard.readText())===key,'Copy matches current enrollment key');record('copy-enrollment-key');
  await page.locator('[name=code]').fill(totp(key));
  await Promise.all([page.waitForNavigation(),page.getByRole('button',{name:'Verificar e entrar'}).click()]);
- assert.equal(await page.locator('.recovery li').count(),8);record('real-login-totp-enrollment-recovery');
+ assert.equal(await page.locator('.recovery li').count(),8,'MFA enrollment: '+(await page.locator('.notice.error').allTextContents()).join(' '));record('real-login-totp-enrollment-recovery');
  const recovery=await page.locator('.recovery code').allTextContents();
  const downloadPromise=page.waitForEvent('download');await page.getByRole('button',{name:'Baixar códigos de recuperação'}).click();
  const download=await downloadPromise;const file=await download.path();const downloaded=fs.readFileSync(file,'utf8');
@@ -51,6 +51,7 @@ try {
  assert.equal(download.suggestedFilename(),'brnmail-codigos-recuperacao.txt');await download.delete();record('one-time-recovery-download');
  await page.evaluate(()=>navigator.clipboard.writeText('')); // Erase the synthetic secret after the copy check.
  await page.getByRole('link',{name:/Guardei os códigos/}).click(); await page.waitForURL('**/mail');
+ if(process.env.BRNMAIL_QA_ADMIN_ONLY !== '1') {
  const forbidden=[];context.on('request',request=>{if(request.url().includes('/qa-forbidden-'))forbidden.push(request.url());});
  await page.goto(base+'/mail?box='+user.box+'&message='+user.html_message);
  const reader=page.frameLocator('iframe.mail-html');
@@ -168,10 +169,51 @@ try {
  await page.locator('#send-form button').click();
  assert.match(await page.locator('#send-state').innerText(),/operação anterior não foi confirmada/);record('network-failure-preserves-text-and-prevents-blind-retry');
  await page.unroute(base+saveUrl);page.on('dialog',dialog=>dialog.accept());
- await page.goto(base+'/admin');await page.getByRole('heading',{name:'Administração',exact:true}).waitFor();
- for(const width of [390,1440]) {await page.setViewportSize({width,height:1000});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();assert.equal(axe.violations.length,0,'Admin a11y: '+axe.violations.map(v=>v.id).join(','));record('admin-layout-accessibility',{width});}
+ }
+ // Confirmations are exercised only against the synthetic QA mailbox.
+ await page.goto(base+'/admin/mailboxes?q='+encodeURIComponent('comunicacao@brnmail.test'));
+ const syntheticRow=page.locator('[data-mailbox-id="'+user.box+'"]');
+ await syntheticRow.getByRole('link',{name:'Bloquear caixa',exact:true}).click();
+ assert.equal(await page.locator('h1').innerText(),'Bloquear caixa');
+ assert.equal(await page.locator('[name=confirm]').isChecked(),false);
+ await page.getByRole('link',{name:'Cancelar',exact:true}).click();
+ await page.goto(base+'/admin/mailboxes?q='+encodeURIComponent('comunicacao@brnmail.test'));
+ await syntheticRow.getByRole('link',{name:'Bloquear caixa',exact:true}).click();
+ await page.locator('[name=confirm]').check();await page.locator('[name=password]').fill(user.password);
+ await page.getByRole('button',{name:'Bloquear caixa',exact:true}).click();
+ await page.goto(base+'/admin/mailboxes?q='+encodeURIComponent('comunicacao@brnmail.test'));
+ await syntheticRow.getByRole('link',{name:'Desbloquear caixa',exact:true}).click();
+ await page.locator('[name=confirm]').check();await page.locator('[name=password]').fill(user.password);
+ await page.getByRole('button',{name:'Desbloquear caixa',exact:true}).click();
+ record('mailbox-controls-cancel-block-unblock-synthetic-only');
+ const adminIssues=[];
+ for(const path of ['/admin','/admin/companies','/admin/products','/admin/domains','/admin/mailboxes','/admin/aliases','/admin/users','/admin/permissions','/admin/invites','/admin/integration','/admin/activity','/security']) {
+   const response=await page.goto(base+path);assert.equal(response.status(),200,path);
+   assert.equal(await page.locator('h1').count(),1,'One clear page title');
+   await page.locator('details.admin-create, .security-revoke, .management-content details').evaluateAll(elements=>elements.forEach(el=>{el.open=true;}));
+   for(const theme of ['light','dark']) for(const width of [390,1440]) {
+     await page.evaluate(t=>{document.documentElement.dataset.theme=t;localStorage.setItem('brnmail-theme',t)},theme);
+     await page.setViewportSize({width,height:1000});
+     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),path+' overflow');
+     const axe=await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa']).analyze();
+     if(axe.violations.length)adminIssues.push({path,theme,width,issues:axe.violations.map(v=>({id:v.id,targets:v.nodes.map(n=>n.target)}))});
+     record('admin-security-layout-accessibility',{path,width,theme});
+     if(['/admin','/admin/mailboxes','/security'].includes(path)) await page.screenshot({path:'test-results/navigation-'+path.replaceAll('/','-')+'-'+theme+'-'+width+'.png',fullPage:true});
+   }
+ }
+ await page.goto(base+'/admin/mailboxes');
+ await page.getByRole('search').getByRole('searchbox').fill('does-not-exist.example.test');
+ await page.getByRole('search').getByRole('button',{name:'Filtrar',exact:true}).click();
+ await page.getByText('Nenhuma caixa encontrada', {exact:false}).waitFor();record('admin-search-empty-state');
+ await page.goto(base+'/admin/permissions');
+ assert.equal(await page.locator('[name="mailbox_ids[]"]').count(),0,'No cross-company selection');
+ const organization=await page.locator('[name=organization] option').nth(1).getAttribute('value');
+ await page.locator('[name=organization]').selectOption(organization);
+ await page.getByRole('button',{name:'Filtrar',exact:true}).click();
+ assert.equal(await page.locator('[name="mailbox_ids[]"]:checked').count(),0,'Never automatically grant boxes');record('admin-explicit-permission-selection');
+ assert.equal(adminIssues.length,0,JSON.stringify(adminIssues));
  assert.equal(external.length,0,'No external network permitted during browser QA');assert.equal(errors.length,0,'Browser script errors');
  record('no-external-requests-or-script-errors');
- fs.writeFileSync('test-results/browser.json',JSON.stringify({checks:report.length,report},null,2));
+ fs.writeFileSync('test-results/'+(process.env.BRNMAIL_QA_ADMIN_ONLY === '1'?'admin-browser':'browser')+'.json',JSON.stringify({checks:report.length,report},null,2));
  console.log(JSON.stringify({browser_checks:report.length,external_requests:external.length,script_errors:errors.length}));
 } finally {await browser.close();}

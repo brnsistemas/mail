@@ -13,7 +13,6 @@ use App\Models\ProviderSetting;
 use App\Models\User;
 use App\Services\Access;
 use App\Services\AccountReactivation;
-use App\Services\AdminMailboxInventory;
 use App\Services\DomainStatus;
 use App\Services\InvitationMailbox;
 use Illuminate\Http\Request;
@@ -27,19 +26,6 @@ class AdminController extends Controller
     private function master(Request $r): void
     {
         abort_unless($r->user()->master, 403);
-    }
-
-    public function index(Request $r, AdminMailboxInventory $inventory)
-    {
-        $this->master($r);
-
-        $users = User::select('id', 'name', 'email', 'active', 'master', 'totp_confirmed_at')
-            ->selectSub(DB::table('mail_audits')->selectRaw('MAX(created_at)')
-                ->whereColumn('actor_id', 'users.id')->where('action', 'mfa.verified'), 'last_login_at')
-            ->orderBy('name')->orderBy('id')->get();
-        $boxes = Mailbox::with('domain.product.organization', 'grants')->orderBy('mail_domain_id')->orderBy('address')->get();
-
-        return view('admin.index', ['organizations' => Organization::all(), 'products' => Product::all(), 'domains' => MailDomain::all(), 'boxes' => $boxes, 'users' => $users, 'inventory' => $inventory->rows($boxes, $users), 'events' => DB::table('webhook_events')->select('id', 'type', 'status', 'last_error', 'created_at')->latest()->limit(20)->get(), 'audits' => DB::table('mail_audits')->latest()->limit(20)->get(), 'outbox' => DB::table('mail_outbox')->select('status', DB::raw('COUNT(*) as total'))->groupBy('status')->get(), 'hasProviderKey' => (bool) ProviderSetting::valueFor('api_key')]);
     }
 
     public function provider(Request $r, Access $access)
@@ -165,7 +151,7 @@ class AdminController extends Controller
         $ids = $d['mailbox_ids'] ?? [$d['mailbox_id']];
         DB::transaction(function () use ($d, $ids, $r, $access) {
             $boxes = Mailbox::with('domain.product')->whereKey($ids)->orderBy('id')->lockForUpdate()->get();
-            abort_unless($boxes->count() === count($ids), 422, 'Uma das caixas selecionadas não está mais disponível.');
+            abort_unless($boxes->count() === count($ids) && ! $boxes->contains(fn ($box) => $box->deleted_at), 422, 'Uma das caixas selecionadas não está mais disponível.');
             $organizations = $boxes->map(fn ($box) => $box->domain->product->organization_id)->unique();
             $memberships = Membership::where('user_id', $d['user_id'])->whereIn('organization_id', $organizations)
                 ->orderBy('organization_id')->lockForUpdate()->get();

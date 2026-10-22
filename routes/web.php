@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\AdminPageController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\MailboxActionController;
 use App\Http\Controllers\MailController;
 use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
@@ -33,7 +35,10 @@ Route::middleware(['auth', 'credential.version'])->group(function () {
         Route::get('/attachments/{id}', [MailController::class, 'download'])->whereUuid('id');
         Route::post('/attachments/{id}/remove', [MailController::class, 'removeAttachment'])->whereUuid('id');
         Route::post('/security/revoke', [AuthController::class, 'revoke'])->middleware('throttle:5,1');
-        Route::get('/admin', [AdminController::class, 'index']);
+        Route::get('/admin', [AdminPageController::class, 'index']);
+        Route::get('/admin/{section}', [AdminPageController::class, 'index'])->where('section', implode('|', array_keys(AdminPageController::SECTIONS)));
+        Route::get('/admin/mailboxes/{id}/{operation}', [MailboxActionController::class, 'show'])->whereNumber('id')->where('operation', 'block|unblock|revoke|delete|restore');
+        Route::post('/admin/mailboxes/{id}/{operation}', [MailboxActionController::class, 'update'])->whereNumber('id')->where('operation', 'block|unblock|revoke|delete|restore')->middleware('throttle:10,1,resource-actions:');
         Route::post('/admin/provider', [AdminController::class, 'provider'])->middleware('throttle:5,1');
         Route::post('/admin/products', [AdminController::class, 'product']);
         Route::post('/admin/organizations', [AdminController::class, 'organization'])->middleware('throttle:5,1');

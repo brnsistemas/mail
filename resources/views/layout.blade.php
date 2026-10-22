@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>@yield('title','Caixa de entrada') · BRN Mail</title><link rel="stylesheet" href="/mail.css?v=20260921-html-spam"><script src="/mail.js?v=20260921-compose" defer></script>@stack('head')</head>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="csrf-token" content="{{ csrf_token() }}"><title>@yield('title','Caixa de entrada') · BRN Mail</title><link rel="stylesheet" href="/mail.css?v=20261022-controls"><script src="/mail.js?v=20260921-compose" defer></script>@stack('head')</head>
 <body class="@yield('body-class')"><a class="skip" href="#main">Pular para conteúdo</a>
 <header class="top">
     <a href="/mail" class="brand" aria-label="BRN Mail · minhas caixas"><span class="mark"><x-icon name="mail"/></span><strong>BRN<span>Mail</span></strong></a>

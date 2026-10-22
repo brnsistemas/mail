@@ -88,7 +88,7 @@ final class IncomingMail
             }
         }
         $aliasBoxIds = DB::table('mail_aliases')->whereIn('address', $addresses)->pluck('mailbox_id');
-        $boxes = Mailbox::where('active', true)->where(fn ($q) => $q->whereIn('address', $addresses)->orWhereIn('id', $aliasBoxIds))->with('domain.product')->get();
+        $boxes = Mailbox::where('active', true)->whereNull('deleted_at')->where(fn ($q) => $q->whereIn('address', $addresses)->orWhereIn('id', $aliasBoxIds))->with('domain.product')->get();
         if ($boxes->isEmpty()) {
             throw new RuntimeException('recipient_unknown');
         }
@@ -101,7 +101,10 @@ final class IncomingMail
                 return;
             }
             // Serialize copies for this delivery; sorted locks also avoid opposing lock order.
-            Mailbox::whereIn('id', $boxes->pluck('id'))->orderBy('id')->lockForUpdate()->get();
+            $boxes = Mailbox::whereIn('id', $boxes->pluck('id'))->orderBy('id')->lockForUpdate()->get();
+            if ($boxes->contains(fn ($box) => ! $box->active || $box->deleted_at)) {
+                throw new RuntimeException('recipient_unavailable');
+            }
             foreach ($boxes as $box) {
                 if (Message::where('mailbox_id', $box->id)->where('provider_id', $event->email_id)->exists()) {
                     continue;

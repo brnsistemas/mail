@@ -10,7 +10,7 @@ class Mailbox extends Model
 
     protected function casts(): array
     {
-        return ['sensitive' => 'boolean', 'active' => 'boolean'];
+        return ['sensitive' => 'boolean', 'active' => 'boolean', 'deleted_at' => 'datetime'];
     }
 
     public function domain()

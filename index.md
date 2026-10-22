@@ -63,3 +63,7 @@ Distinguir **simulado**, **aceito pelo provedor**, **entregue ao servidor de des
 Teste permissões entre empresas e caixas, revogação durante filas, assinatura inválida, repetição de webhook, recuperação de worker, anexos bloqueados e restauração. Testes negativos usam ambientes controlados. Nunca envie EICAR a caixas externas.
 
 Reverter uma migração exige restaurar os MX anteriores e manter a consulta aos dois provedores durante a propagação. Preservar banco, mensagens e anexos; mudar DNS não recupera automaticamente mensagens que chegaram ao outro provedor.
+
+## Administração e segurança — outubro de 2026
+
+Leia [a atualização](docs/ATUALIZACAO_2026_10.md) antes de atualizar uma instalação existente. As listas administrativas têm busca, filtros e paginação. Bloquear, revogar acessos e excluir uma caixa são ações distintas, confirmadas individualmente com senha e 2FA vigente. Exclusão preserva dados e endereço; restauração não devolve acesso. Nenhuma conta ou caixa existente é alterada só por instalar esta versão.

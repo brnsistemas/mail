@@ -61,7 +61,7 @@ class AdminMailboxInventoryTest extends TestCase
         $grants = MailboxGrant::count();
         $memberships = Membership::count();
 
-        $this->get('/admin')->assertOk()->assertSee($active->address)->assertSee($inactive->address)
+        $this->get('/admin/mailboxes')->assertOk()->assertSee($active->address)->assertSee($inactive->address)
             ->assertSee('Empresa outraempresa')->assertSee('Inativa')->assertSee($operator->email)
             ->assertDontSee('Assunto confidencial QA')->assertDontSee('Corpo confidencial QA')->assertDontSee('privado.txt');
         $this->get('/mail?box='.$active->id.'&message='.$message->id)->assertNotFound();
@@ -96,10 +96,12 @@ class AdminMailboxInventoryTest extends TestCase
         $this->audit($operator, 'login.password', '2026-09-20 14:00:00');
         $this->audit($withoutLogin, 'login.failed', '2026-09-20 14:00:00');
 
-        $response = $this->get('/admin')->assertOk()->assertSee('19/09/2026 12:30:00')->assertSee($withoutLogin->email)->assertSee('Sem registro');
-        $users = $response->viewData('users')->keyBy('id');
+        $response = $this->get('/admin/mailboxes')->assertOk()->assertSee('19/09/2026 12:30:00');
+        $peopleResponse = $this->get('/admin/users?q='.urlencode($withoutLogin->email))->assertOk()->assertSee($withoutLogin->email)->assertSee('Sem registro');
+        $this->assertNull($peopleResponse->viewData('users')->first()->last_login_at);
+        $peopleResponse = $this->get('/admin/users?q='.urlencode($operator->email))->assertOk();
+        $users = $peopleResponse->viewData('users')->keyBy('id');
         $this->assertSame('2026-09-19 12:30:00', $users[$operator->id]->last_login_at->format('Y-m-d H:i:s'));
-        $this->assertNull($users[$withoutLogin->id]->last_login_at);
         foreach (['password', 'remember_token', 'totp_secret', 'recovery_hashes'] as $secret) {
             $this->assertArrayNotHasKey($secret, $users[$operator->id]->getAttributes());
         }
@@ -133,7 +135,7 @@ class AdminMailboxInventoryTest extends TestCase
             $this->audit($person, 'mfa.verified', '2026-09-20 11:00:00');
         }
 
-        $rows = $this->get('/admin')->assertOk()->viewData('inventory')->keyBy('box.id');
+        $rows = $this->get('/admin/mailboxes')->assertOk()->viewData('inventory')->keyBy('box.id');
         foreach ([$shared, $sensitive, $inactive] as $box) {
             foreach ($rows[$box->id]['operators'] as $operator) {
                 $this->assertSame(app(Access::class)->allowed($operator['user'], $box->id, 'read'), $operator['read']);
@@ -151,7 +153,7 @@ class AdminMailboxInventoryTest extends TestCase
         $box = $this->box('escape', ['name' => '<script>mailboxTest()</script>']);
         $operator = User::factory()->create(['name' => '<script>userTest()</script>']);
         $this->grant($operator, $box);
-        $this->get('/admin')->assertOk()->assertSee($box->name)->assertSee($operator->name)
+        $this->get('/admin/mailboxes')->assertOk()->assertSee($box->name)->assertSee($operator->name)
             ->assertDontSee($box->name, false)->assertDontSee($operator->name, false);
     }
 }
